@@ -5,7 +5,11 @@ from utils import get_roi_clamped
 
 class KeypointsCourt:
     def __init__(self):
-        self.exact_points = []
+        self.keypoints = np.array([], dtype=np.float32).reshape(0, 2)
+    
+    def append_list_of_points(self, points):
+        self.keypoints = np.vstack([self.keypoints, points])
+    
         
     def refine_points(self, img, kps):
         """
@@ -14,7 +18,22 @@ class KeypointsCourt:
         for kp in kps:
             cx, cy = kp[0], kp[1]
             exact_x, exact_y = self._refine_single_point(img, cx, cy)
-            self.exact_points.append((exact_x, exact_y))
+            self.keypoints = np.vstack([self.keypoints, [exact_x, exact_y]])
+        self.enforce_geometric_consistency()
+
+    def enforce_geometric_consistency(self):
+
+        x_central = np.average(
+            [self.keypoints[0,0], self.keypoints[3,0], self.keypoints[4,0]], weights=[1.5, 1.0, 1.5]
+        )
+        self.keypoints[0,0] = x_central
+        self.keypoints[3,0] = x_central
+        self.keypoints[4,0] = x_central
+
+        y_superior = np.mean([self.keypoints[0, 1], self.keypoints[1, 1], self.keypoints[2, 1]])
+        self.keypoints[0, 1] = y_superior
+        self.keypoints[1, 1] = y_superior
+        self.keypoints[2, 1] = y_superior
 
     def _refine_single_point(self, img, cx, cy):
         roi_H, ox_H, oy_H = get_roi_clamped(img, cx, cy,
