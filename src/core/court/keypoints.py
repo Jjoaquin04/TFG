@@ -19,21 +19,6 @@ class KeypointsCourt:
             cx, cy = kp[0], kp[1]
             exact_x, exact_y = self._refine_single_point(img, cx, cy)
             self.keypoints = np.vstack([self.keypoints, [exact_x, exact_y]])
-        self.enforce_geometric_consistency()
-
-    def enforce_geometric_consistency(self):
-
-        x_central = np.average(
-            [self.keypoints[0,0], self.keypoints[3,0], self.keypoints[4,0]], weights=[1.5, 1.0, 1.5]
-        )
-        self.keypoints[0,0] = x_central
-        self.keypoints[3,0] = x_central
-        self.keypoints[4,0] = x_central
-
-        y_superior = np.mean([self.keypoints[0, 1], self.keypoints[1, 1], self.keypoints[2, 1]])
-        self.keypoints[0, 1] = y_superior
-        self.keypoints[1, 1] = y_superior
-        self.keypoints[2, 1] = y_superior
 
     def _refine_single_point(self, img, cx, cy):
         roi_H, ox_H, oy_H = get_roi_clamped(img, cx, cy,

@@ -15,10 +15,12 @@ HOUGH_THRESH  = 25
 ANGLE_TOL_DEG = 25
 
 real_points = np.array([
-    [0.0, 6.95],      # 0: T Superior (A 6.95m hacia arriba de la red)
-    [-5.0, 6.95],     # 1: Cristal Izquierdo (Misma altura que la T, pero 5m a la izquierda)
-    [5.0, 6.95],      # 2: Cristal Derecho (Misma altura que la T, pero 5m a la derecha)
-    [0.0, 0.0],       # 3: Net (El centro exacto, nuestro Origen)
-    [0.0, -6.95]      # 4: T Inferior (A 6.95m hacia abajo de la red)
+    [-5.0, 6.95],     # 1: Cristal Izquierdo Superior
+    [0.0, 6.95],      # 0: T Superior    
+    [5.0, 6.95],      # 2: Cristal Derecho Superior
+    [0.0, 0.0],       # 3: Net
+    [-5.0, -6.95],    # 4: Cristal Izquierdo Inferior
+    [0.0, -6.95],     # 5: T Inferior      
+    [5.0, -6.95]      # 6: Cristal Derecho Inferior
 ], dtype=np.float32)
 

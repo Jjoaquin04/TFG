@@ -19,6 +19,4 @@ data/outputs/*
 data/inputs/videos/*
 !data/inputs/videos/.gitkeep
 
-# Modelos pesados (Los archivos .pt suelen ser grandes para GitHub normal)
-# Si tu modelo pesa menos de 50MB o lo necesitas en el repo, puedes comentar esta línea
-models/*.pt
+
