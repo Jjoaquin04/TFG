@@ -20,3 +20,5 @@ data/inputs/videos/*
 !data/inputs/videos/.gitkeep
 
 
+
+data/json/

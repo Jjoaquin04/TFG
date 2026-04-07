@@ -6,9 +6,9 @@ import torch.nn.functional as F
 class TrackNet(nn.Module):
 
     def __init__(self, in_channels=9, out_channels=3):
-        super(TrackNet,self).__init__
+        super(TrackNet,self).__init__()
 
-        self.conv1_1 = nn.Conv2(in_channels,64, kernel_size=3, padding=1)
+        self.conv1_1 = nn.Conv2d(in_channels,64, kernel_size=3, padding=1)
         self.conv1_2 = nn.Conv2d(64,64,kernel_size=3, padding=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
@@ -44,7 +44,7 @@ class TrackNet(nn.Module):
         self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
         self.sigmoid = nn.Sigmoid()
 
-    def fordward(self,x):
+    def forward(self, x):
 
          # Propagación a través del codificador con activaciones no lineales
         x = F.relu(self.conv1_1(x))

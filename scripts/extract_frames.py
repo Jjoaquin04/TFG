@@ -20,9 +20,10 @@ def save_frames(video_path, output_folder):
             break
         
         # Save frame as PNG. Starts downloading at frame 10200 since we already had the first 10199 frames in the previous container
-        print(f'frame numero: { frame_count}\n')
-        frame_path = os.path.join(output_folder, f'frame_{str(frame_count).zfill(6)}.png')
-        cv2.imwrite(frame_path, frame)
+        if frame_count > 737:
+            print(f'frame numero: { frame_count}\n')
+            frame_path = os.path.join(output_folder, f'frame_{str(frame_count).zfill(6)}.png')
+            cv2.imwrite(frame_path, frame)
 
         frame_count += 1
     
@@ -30,6 +31,6 @@ def save_frames(video_path, output_folder):
     cap.release()
 
 # Example usage
-VIDEO_PATH = "2022_BCN_FinalF_1.mp4" # Path to video
+VIDEO_PATH = "data/inputs/videos/2022_BCN_FinalF_1.mp4" # Path to video
 output_folder = '/images/train2'  # Change this to the folder where you want to save frames
 save_frames(VIDEO_PATH, output_folder)
