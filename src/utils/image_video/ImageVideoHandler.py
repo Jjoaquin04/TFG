@@ -77,3 +77,18 @@ def fit_line_svd(segs_list):
     a, b = -dy, dx
     c = a * cx_f + b * cy_f
     return a, b, c
+
+def draw_edges_court_connections(frame, court_points, is_mini_court=False):
+    for edge in config.COURT_EDGES:
+            pt1 = court_points[edge[0]][0]
+            pt2 = court_points[edge[1]][0]
+            # Seleccionamos el color del índice 3 (mini court) o índice 2 (real court)
+            color = edge[3] if is_mini_court else edge[2]
+            
+            if not is_mini_court and edge[0] == 11 and edge[1] == 12:
+                # No pintar la edge de la red en court real
+                continue
+                
+            cv2.line(frame, (int(round(pt1[0])), int(round(pt1[1]))), 
+                            (int(round(pt2[0])), int(round(pt2[1]))), color, 2)
+    return frame
