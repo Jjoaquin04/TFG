@@ -3,10 +3,10 @@ import numpy as np
 
 import config
 
-def read_image(path_img):
-    img = cv2.imread(path_img)
-    height_img, width_img = img.shape[:2]
-    return img, height_img, width_img
+def read_video(path_video):
+    cap = cv2.VideoCapture(path_video)
+    height_img, width_img, fps = cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FPS)
+    return cap, height_img, width_img, fps
 
 def open_window(window_name,img):
     cv2.namedWindow(window_name,cv2.WINDOW_GUI_NORMAL)

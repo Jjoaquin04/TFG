@@ -53,10 +53,10 @@ class MiniCourt():
 
     def set_background_court(self, frame_width):
 
-        self.start_x = frame_width - (self.margin + self.rectangle_width)
-        self.start_y = self.margin
-        self.end_x = frame_width - self.margin
-        self.end_y = self.start_y + self.rectangle_height
+        self.start_x = int(frame_width - (self.margin + self.rectangle_width))
+        self.start_y = int(self.margin)
+        self.end_x = int(frame_width - self.margin)
+        self.end_y = int(self.start_y + self.rectangle_height)
 
     def draw_court(self, frame):
         # 1. Dibujar el fondo del minimapa (margen exterior)

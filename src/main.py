@@ -1,50 +1,41 @@
-import numpy as np
-
+import cv2
 import config
 from core.court.keypoints import KeypointsCourt
 from core.court.mini_court.mini_court import MiniCourt
-from utils import read_image, make_prediction, open_window, close_window
-import cv2
+from utils import read_video, make_prediction, open_window, close_window
+from utils.image_video.ImageVideoHandler import draw_edges_court_connections, read_video
 
-from utils.image_video.ImageVideoHandler import draw_edges_court_connections
+# ─── Carga imagen y modelo ────────────────────────────────────────────────────
+cap, frame_height , frame_width, fps = read_video(config.VIDEO_PATH)
+out = cv2.VideoWriter('data/outputs/output_video.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
-def main():
-    # ─── Carga imagen y modelo ────────────────────────────────────────────────────
-    img, _ , frame_width = read_image(config.DEFAULT_IMAGE_PATH)
+first_frame = True
+mini_court = MiniCourt(frame_width)
+keypoints_court = KeypointsCourt()
 
-    result = make_prediction(config.MODEL_PATH, img)
+while cap.isOpened():
 
-    # Extraemos los keypoints del modelo
-    kps = result[0].keypoints.xy.cpu().numpy()
+    ret, img = cap.read()
 
-    # ─── Creamos el objeto KeypointsCourt y refinamos los puntos ─────────────────
-    keypoints_court = KeypointsCourt()
-    keypoints_court.refine_points(img, kps[0])  # kps[0] ya que yolo te devuelve shape (1, num_kps, 2)
-    print("Keypoints refinados (coordenadas de imagen):", keypoints_court.keypoints)
-    img_kps = img.copy()
-    for i, (x, y) in enumerate(keypoints_court.keypoints):
-        print(f"Keypoint {i}: ({x:.2f}, {y:.2f})")
-        cv2.circle(img_kps, (int(round(x)), int(round(y))), radius=5, color=(0, 255, 0), thickness=-1)
-    open_window("Keypoints refinados", img_kps) 
-
-    H, _ = cv2.findHomography(keypoints_court.keypoints, config.real_points_model, cv2.RANSAC)
-    H_inversa = np.linalg.inv(H)
-
-    esqueleto_transformado = cv2.perspectiveTransform(config.rest_real_points_model, H_inversa)
-    keypoints_court.append_list_of_points(esqueleto_transformado.reshape(-1, 2))
-
-    # Dibujamos los keypoints refinados + esqueleto completo
-    for i, (ex, ey) in enumerate(keypoints_court.keypoints):
-       cv2.circle(img, (int(round(ex)),int(round(ey))),radius=5,color=(0,0,255),thickness=-1)
-       
-    draw_edges_court_connections(img, keypoints_court.keypoints.reshape(-1, 1, 2))
+    if not ret:
+        break
     
-    mini_court = MiniCourt(frame_width)
+    if first_frame:
+        result = make_prediction(config.KEYPOINTS_COURT_MODEL, img)
+        kps = result[0].keypoints.xy.cpu().numpy()
+        keypoints_court.refine_points(img, kps[0])
+        keypoints_court.extract_rest_of_kpoints()
+        first_frame = False
+
+    draw_edges_court_connections(img, keypoints_court.keypoints.reshape(-1, 1, 2))
     image_with_minicourt = mini_court.draw_court(img)
+    open_window("PadelAnalytics", image_with_minicourt)
+    out.write(image_with_minicourt)
 
-    open_window("Keypoints refinados + Esqueleto proyectado + MiniCourt", image_with_minicourt)
-    close_window()
 
 
-if __name__ == "__main__":
-    main()
+
+cap.release()   
+out.release()
+close_window()
+

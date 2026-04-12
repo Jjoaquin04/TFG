@@ -2,8 +2,8 @@
 import numpy as np
 
 
-MODEL_PATH = 'models/yolov8-pose-keypoint-court.pt'
-DEFAULT_IMAGE_PATH = 'data/inputs/images/frame_000011.png'
+KEYPOINTS_COURT_MODEL = 'models/yolov8-keypoint-court.pt'
+VIDEO_PATH = 'data/inputs/videos/2022_BCN_FinalM_1.mp4'
 
 # ─── Configuración de visión y ajuste de keypoints ────────────────────────
 HALF_WIN_H    = 120      # Ventana horizontal (ancho) para buscar línea H
