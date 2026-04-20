@@ -19,6 +19,3 @@ data/outputs/*
 data/inputs/videos/*
 !data/inputs/videos/.gitkeep
 data/json/
-
-# Quitar el modelo de pose player
-models/yolov8-player-pose.pt

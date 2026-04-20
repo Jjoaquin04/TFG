@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-
 import config
 
 def read_video(path_video):
@@ -91,4 +90,18 @@ def draw_edges_court_connections(frame, court_points, is_mini_court=False):
                 
             cv2.line(frame, (int(round(pt1[0])), int(round(pt1[1]))), 
                             (int(round(pt2[0])), int(round(pt2[1]))), color, 2)
+    return frame
+
+def draw_bounding_boxes(frame, players, ids=None):
+    list_ids = list(ids) if ids is not None else [None] * len(players)
+    for i, player in enumerate(players):
+        x1, y1, x2, y2 = int(round(player.bbx[0])), int(round(player.bbx[1])), int(round(player.bbx[2])), int(round(player.bbx[3]))
+        
+        id_val = int(list_ids[i]) if ids is not None else 0
+        color = (0, 255, 255) if ids is None else (int(id_val * 50 % 256), int(255 - (id_val * 50 % 256)), 150)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        
+        if ids is not None:
+            cv2.putText(frame, f'ID: {id_val}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
     return frame

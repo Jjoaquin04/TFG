@@ -2,7 +2,9 @@
 import numpy as np
 
 
-KEYPOINTS_COURT_MODEL = 'models/yolov8-keypoint-court.pt'
+KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint.pt'
+PLAYER_POSE_MODEL = 'models/yolov8-player-pose.pt'
+BALL_MODEL = 'models/yolov8-ball-bbx.pt'
 VIDEO_PATH = 'data/inputs/videos/2022_BCN_FinalM_1.mp4'
 
 # ─── Configuración de visión y ajuste de keypoints ────────────────────────
