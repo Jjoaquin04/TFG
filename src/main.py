@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from ultralytics import YOLO
 import config
 from core.ball.ball_tracker import BallTracker
@@ -44,6 +45,7 @@ while cap.isOpened():
         keypoints_court.extract_rest_of_kpoints()
 
         player_tracker.homography = keypoints_court.H
+        ball_tracker.homography = keypoints_court.H
         first_frame = False
 
     #Draw court lines
@@ -52,15 +54,23 @@ while cap.isOpened():
     result_players = make_track(player_model, img)
     result_ball = make_prediction(ball_model, img)
 
-    if result_players.boxes is not None:
+    boxes, track_ids, keypoints = [], [], None
+    if result_players.boxes is not None and len(result_players.boxes) > 0:
         boxes = result_players.boxes.xyxy.cpu().numpy() 
         track_ids = result_players.boxes.id.cpu().numpy().astype(int) if result_players.boxes.id is not None else None
         keypoints = result_players.keypoints.data.cpu().numpy() if result_players.keypoints is not None else None
 
-    ball_tracker.update(result_ball.boxes.xyxy.cpu().numpy())
+    ball_boxes = result_ball.boxes.xyxy.cpu().numpy()
+    if len(ball_boxes) > 0:
+        ball_tracker.update(ball_boxes[0])
+        
     player_tracker.update(track_ids, boxes, keypoints)
-    draw_bounding_boxes(img,player_tracker.players.values(), player_tracker.players.keys())  
-    image_with_minicourt = mini_court.draw_court(img, player_tracker.get_players_positions())
+    draw_bounding_boxes(img,player_tracker.players.values(), player_tracker.players.keys())
+    
+    if ball_tracker.ball.get_bbx() is not None:
+        draw_bounding_boxes(img, [ball_tracker.ball])  
+        
+    image_with_minicourt = mini_court.draw_court(img, player_tracker.get_players_positions(), np.array([[ball_tracker.get_ball_position()]], dtype=np.float32))
     out.write(image_with_minicourt)
     
 cap.release()   

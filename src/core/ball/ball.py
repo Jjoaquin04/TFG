@@ -1,11 +1,16 @@
 class Ball:
-    def __init__(self, x0,y0,x1,y1):
-        self.bbx = (x0,y0,x1,y1)
+    def __init__(self):
+        self.bbx = None
         self.real_position = None
 
     def get_bbx(self):
         return self.bbx
+
+    def get_real_position(self):
+        return self.real_position
     
-    def update_position(self, bbx):
+    def update(self, bbx, real_position):
         self.bbx = bbx
+        self.real_position = real_position
+
     
