@@ -1,14 +1,9 @@
 import cv2
 import numpy as np
-from ultralytics import YOLO
 import config
-from core.ball.ball_tracker import BallTracker
-from core.court.keypoints import KeypointsCourt
-from core.court.mini_court.mini_court import MiniCourt
-from core.player.player_tracker import PlayerTracker
-from utils import read_video, make_prediction, close_window
-from utils.image_video.ImageVideoHandler import draw_bounding_boxes, draw_edges_court_connections, open_window, read_video
-from utils.model.InferenceEngine import make_track
+from ultralytics import YOLO
+from core import BallTracker ,KeypointsCourt, MiniCourt, PlayerTracker
+from utils import read_video, make_prediction, make_track, close_window, draw_bounding_boxes, draw_edges_court_connections, open_window
 
 # ──────── Variables and initialization ────────────────────────────────────
 cap, frame_height , frame_width, fps = read_video(config.VIDEO_PATH)

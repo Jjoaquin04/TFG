@@ -92,10 +92,10 @@ def draw_edges_court_connections(frame, court_points, is_mini_court=False):
                             (int(round(pt2[0])), int(round(pt2[1]))), color, 2)
     return frame
 
-def draw_bounding_boxes(frame, players, ids=None):
-    list_ids = list(ids) if ids is not None else [None] * len(players)
-    for i, player in enumerate(players):
-        x1, y1, x2, y2 = int(round(player.bbx[0])), int(round(player.bbx[1])), int(round(player.bbx[2])), int(round(player.bbx[3]))
+def draw_bounding_boxes(frame, object, ids=None):
+    list_ids = list(ids) if ids is not None else [None] * len(object)
+    for i, obj in enumerate(object):
+        x1, y1, x2, y2 = int(round(obj.bbx[0])), int(round(obj.bbx[1])), int(round(obj.bbx[2])), int(round(obj.bbx[3]))
         
         id_val = int(list_ids[i]) if ids is not None else 0
         color = (0, 255, 255) if ids is None else (int(id_val * 50 % 256), int(255 - (id_val * 50 % 256)), 150)

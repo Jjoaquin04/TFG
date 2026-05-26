@@ -17,5 +17,6 @@ env/
 data/outputs/*
 !data/outputs/.gitkeep
 data/inputs/videos/*
+data/inputs/json/*
 !data/inputs/videos/.gitkeep
 data/json/

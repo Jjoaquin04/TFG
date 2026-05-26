@@ -9,7 +9,7 @@ class PlayerTracker:
         self.ids_order = []
         self.homography = homography_matrix
 
-    def update(self, ids, boxes, keypoints): # index 0: Top-Left-Player, index 1: Top-Right-Player, index 2: Bottom-Left-Player, index 3: Bottom-Right-Player
+    def update(self, ids, boxes, keypoints, frame_idx): # index 0: Top-Left-Player, index 1: Top-Right-Player, index 2: Bottom-Left-Player, index 3: Bottom-Right-Player
 
         if len(self.ids_order) == 0 and len(boxes) == 4:
             self.add_and_reorder_yoloIds(boxes, ids)
@@ -27,9 +27,9 @@ class PlayerTracker:
             real_position = (transformed_point[0][0][0], transformed_point[0][0][1])
 
             if player_id not in self.players:
-                self.players[player_id] = Player(id=player_id, bbx=bbx, keypoints=kps, real_position=real_position)
-            else:
-                self.players[player_id].update(new_bbx=bbx, new_keypoints=kps, new_real_position=real_position)
+                self.players[player_id] = Player(id=player_id)
+            
+            self.players[player_id].update(frame_idx = frame_idx, new_bbx=bbx, new_keypoints=kps, new_real_position=real_position)
 
 
     def add_and_reorder_yoloIds(self,boxes, ids):
@@ -84,10 +84,7 @@ class PlayerTracker:
             return bbx_bottom_center
 
     def get_players_positions(self):
-
-        real_positions = []
-        for player in self.players.values():
-            real_positions.append(
-                player.current_position
-            )
-        return real_positions
+        return [p.current_position() for p in self.players.values()]
+    
+    def get_players_history(self):
+        return [p.history for p in self.players.values()]

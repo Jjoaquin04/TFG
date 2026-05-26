@@ -1,18 +1,35 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
+import pandas as pd
 
 @dataclass
 class Player:
     id: int
-    bbx: List[float] # Bounding box: [x_min, y_min, x_max, y_max]
-    keypoints: List[float] # Lista de keypoints: [x1, y1, x2, y2, ..., xN, yN]
-    real_position: List[float] = None 
+    bbx: List[float] # Bounding box actual: [x1, y1, x2, y2]
+    keypoints: List[float] # Keypoints actual: [x1, y1, x2, y2, ..., xN, yN]
+    real_position: List[float] = None # Posición real en la cancha: [x, y]
+    history: List[dict] = field(default_factory=list)
 
     @property
     def current_position(self) -> List[float]:
         return self.real_position
     
-    def update(self, new_bbx: List[float], new_keypoints: List[float], new_real_position: List[float]):
+    def update(self, frame_idx: int, new_bbx: List[float], new_keypoints: List[float], new_real_position: List[float]):
         self.bbx = new_bbx
         self.keypoints = new_keypoints
         self.real_position = new_real_position
+
+        self.history.append({
+            'frame': frame_idx,
+            'player_id': self.id,
+            'x_min': new_bbx[0],
+            'y_min': new_bbx[1],
+            'x_max': new_bbx[2],
+            'y_max': new_bbx[3],
+            'real_x': new_real_position[0],
+            'real_y': new_real_position[1],
+            'keypoints': new_keypoints,
+        })
+
+    def to_dataframe(self) -> pd.DataFrame:
+        return pd.DataFrame(self.history)

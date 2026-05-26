@@ -3,7 +3,7 @@ import numpy as np
 
 
 import config
-from utils.image_video.ImageVideoHandler import draw_edges_court_connections
+from utils import draw_edges_court_connections
 
 
 class MiniCourt():

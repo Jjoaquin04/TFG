@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import config
-from utils.image_video.ImageVideoHandler import get_roi_clamped, preprocess_roi, get_segments, classify_segments, fit_line_svd
+from utils.image_video.image_video_handler import get_roi_clamped, preprocess_roi, get_segments, classify_segments, fit_line_svd
 
 class KeypointsCourt:
     def __init__(self):
