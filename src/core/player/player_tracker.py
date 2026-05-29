@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from core.player.player import Player
+from .player import Player
 
 
 class PlayerTracker:

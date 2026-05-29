@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import json
 import os
-import config
 from core import MiniCourt
 from utils import read_video, draw_bounding_boxes, draw_edges_court_connections
 
@@ -11,23 +10,25 @@ class RenderItem:
     def __init__(self, bbx):
         self.bbx = bbx
 
-def render(json_file_name: str, output_video_name: str = 'output_video.mp4'):
-    interp_path = os.path.join(config.INTERP_JSON_PATH, json_file_name)
-    
-    print(f"Loading tracking data from {interp_path}...")
-    with open(interp_path, 'r') as f:
+def render(video_path: str, interp_json_path: str):
+   
+    video_name = os.path.basename(video_path).split('.')[0]
+    output_video_name = f"{video_name}_rendered.mp4"
+
+    print(f"Loading tracking data from {interp_json_path}...")
+    with open(interp_json_path, 'r') as f:
         data = json.load(f)
         
     # Organizar datos por frame para un acceso rápido O(1)
     ball_data_by_frame = {item['frame']: item for item in data.get('ball', [])}
     
-    # Si tenemos players en el JSON, los agrupamos también por frame
     players_data_by_frame = {}
-    for p in data.get('players', []):
-        frame = p['frame']
-        if frame not in players_data_by_frame:
-            players_data_by_frame[frame] = []
-        players_data_by_frame[frame].append(p)
+    for player_history in data.get('players', []):
+        for p in player_history:
+            frame = int(p['frame'])
+            if frame not in players_data_by_frame:
+                players_data_by_frame[frame] = []
+            players_data_by_frame[frame].append(p)
         
     # Court keypoints (si los extrajimos y guardamos en la fase anterior)
     court_keypoints = data.get('court_keypoints', None)
@@ -35,8 +36,8 @@ def render(json_file_name: str, output_video_name: str = 'output_video.mp4'):
         court_keypoints = np.array(court_keypoints, dtype=np.float32).reshape(-1, 1, 2)
         
     # ──────── Iniciar video ────────
-    cap, frame_height, frame_width, fps = read_video(config.VIDEO_PATH)
-    out_path = os.path.join('data/outputs', output_video_name)
+    cap, frame_height, frame_width, fps = read_video(video_path)
+    out_path = os.path.join('data', 'outputs', 'videos', output_video_name)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     out = cv2.VideoWriter(out_path, fourcc=cv2.VideoWriter_fourcc(*'mp4v'), fps=fps, frameSize=(int(round(frame_width)), int(round(frame_height))))
 

@@ -1,12 +1,12 @@
-# Rutas de archivos y modelos
+# Rutas de archivos, modelos, estructuras y clase cte
+import json
 import numpy as np
 
 
 KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint.pt'
 PLAYER_POSE_MODEL = 'models/yolov8-player-pose.pt'
 BALL_MODEL = 'models/yolov8-ball-bbx.pt'
-VIDEO_PATH = 'data/inputs/videos/2022_BCN_FinalM_1.mp4'
-RAW_JSON_PATH = 'data/outputs/json/raw_json'
+RAW_JSON_FOLDER_PATH = 'data/outputs/json/raw_json'
 INTERP_JSON_PATH = 'data/outputs/json'
 
 # ─── Configuración de visión y ajuste de keypoints ────────────────────────
@@ -67,3 +67,12 @@ COURT_EDGES = [
     # 4. La Red
     (11, 12, (0, 0, 255), (80, 80, 220)),  # Poste Izquierdo a Poste Derecho: Rojo vibrante Real, Rojo suave en Mini
 ]
+class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            if isinstance(obj, np.floating):
+                return float(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return super(NumpyEncoder, self).default(obj)

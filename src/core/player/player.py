@@ -5,8 +5,8 @@ import pandas as pd
 @dataclass
 class Player:
     id: int
-    bbx: List[float] # Bounding box actual: [x1, y1, x2, y2]
-    keypoints: List[float] # Keypoints actual: [x1, y1, x2, y2, ..., xN, yN]
+    bbx: List[float] = None # Bounding box actual: [x1, y1, x2, y2]
+    keypoints: List[float] = None # Keypoints actual: [x1, y1, x2, y2, ..., xN, yN]
     real_position: List[float] = None # Posición real en la cancha: [x, y]
     history: List[dict] = field(default_factory=list)
 

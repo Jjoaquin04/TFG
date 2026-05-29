@@ -6,12 +6,8 @@ import pandas as pd
 class Ball:
 
     history: List[dict] = field(default_factory=list)
-    bbx = List[float] # Bounding box actual: [x1, y1, x2, y2]
-    real_position = List[float] # Posición real en la cancha: [x, y]
-
-    def __init__(self):
-        self.bbx = None
-        self.real_position = None
+    bbx: List[float] = None # Bounding box actual: [x1, y1, x2, y2]
+    real_position: List[float] = None # Posición real en la cancha: [x, y]
 
     def get_bbx(self):
         return self.bbx
@@ -24,7 +20,6 @@ class Ball:
         self.real_position = real_position
         self.history.append({
             'frame': frame_idx,
-            'player_id': self.id,
             'x_min': bbx[0] if bbx is not None else None,
             'y_min': bbx[1] if bbx is not None else None,
             'x_max': bbx[2] if bbx is not None else None,

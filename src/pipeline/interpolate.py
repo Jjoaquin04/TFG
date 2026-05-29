@@ -3,14 +3,15 @@ import json
 import os
 import config
 
-def interpolate(json_file_name: str):
+def interpolate(raw_json_path: str):
     """
     Lee el fichero JSON crudo ('data/json/extend/...') generado en la fase extract,
     interpola numéricamente los frames perdidos de la pelota (bbx y posición real),
     y guarda el resultado en un nuevo JSON ('data/json/reduced/...').
     """
-    raw_path = os.path.join(config.RAW_JSON_PATH, json_file_name)
-    interp_path = os.path.join(config.INTERP_JSON_PATH, json_file_name)
+    raw_path = raw_json_path
+    file_name = os.path.basename(raw_path)
+    interp_path = os.path.join(config.INTERP_JSON_PATH, "interpolated_json", file_name)
     
     print(f"Loading raw detections from {raw_path}...")
     with open(raw_path, 'r') as f:

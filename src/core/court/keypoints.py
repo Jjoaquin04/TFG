@@ -69,4 +69,5 @@ class KeypointsCourt:
         except np.linalg.LinAlgError:
             return cx, cy
 
-
+    def get_court_information(self):
+        return [self.keypoints, self.H]
