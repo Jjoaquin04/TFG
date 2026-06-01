@@ -31,9 +31,11 @@ def render(video_path: str, interp_json_path: str):
             players_data_by_frame[frame].append(p)
         
     # Court keypoints (si los extrajimos y guardamos en la fase anterior)
-    court_keypoints = data.get('court_keypoints', None)
-    if court_keypoints is not None:
-        court_keypoints = np.array(court_keypoints, dtype=np.float32).reshape(-1, 1, 2)
+    court_info = data.get('court', None)
+    court_keypoints = None
+    if court_info is not None and len(court_info) > 0:
+        # Puntos de la pista están en el índice 0 del objeto court
+        court_keypoints = np.array(court_info[0], dtype=np.float32).reshape(-1, 1, 2)
         
     # ──────── Iniciar video ────────
     cap, frame_height, frame_width, fps = read_video(video_path)

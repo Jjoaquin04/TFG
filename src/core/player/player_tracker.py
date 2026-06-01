@@ -9,7 +9,7 @@ class PlayerTracker:
         self.ids_order = []
         self.homography = homography_matrix
 
-    def update(self, ids, boxes, keypoints, frame_idx): # index 0: Top-Left-Player, index 1: Top-Right-Player, index 2: Bottom-Left-Player, index 3: Bottom-Right-Player
+    def update(self, ids, boxes, keypoints,keypoints_norm, frame_idx): # index 0: Top-Left-Player, index 1: Top-Right-Player, index 2: Bottom-Left-Player, index 3: Bottom-Right-Player
 
         if len(self.ids_order) == 0 and len(boxes) == 4:
             self.add_and_reorder_yoloIds(boxes, ids)
@@ -17,7 +17,8 @@ class PlayerTracker:
         for i in range(len(boxes)):
             player_id = ids[i]
             bbx = boxes[i].tolist()
-            kps = keypoints[i].flatten().tolist() if keypoints is not None else []
+            kps = keypoints[i].tolist() if keypoints is not None else []
+            kps_norm = keypoints_norm[i].tolist() if keypoints_norm is not None else []
             
             contact_point = self.get_ground_contact_point(bbx, kps)
 
@@ -29,7 +30,7 @@ class PlayerTracker:
             if player_id not in self.players:
                 self.players[player_id] = Player(id=player_id)
             
-            self.players[player_id].update(frame_idx = frame_idx, new_bbx=bbx, new_keypoints=kps, new_real_position=real_position)
+            self.players[player_id].update(frame_idx = frame_idx, new_bbx=bbx, new_keypoints=kps, keypoints_norm=kps_norm,  new_real_position=real_position)
 
 
     def add_and_reorder_yoloIds(self,boxes, ids):
@@ -63,12 +64,12 @@ class PlayerTracker:
         x_min, y_min, x_max, y_max = bbx
         bbx_bottom_center = ((x_min + x_max) / 2, y_max)
 
-        if not kps or len(kps) < 51:
+        if not kps or len(kps) < 17:
             return bbx_bottom_center
 
         # Índices para los tobillos en YOLOv8 pose (15=izquierdo, 16=derecho)
-        left_ankle_x, left_ankle_y, left_ankle_conf = kps[45], kps[46], kps[47]
-        right_ankle_x, right_ankle_y, right_ankle_conf = kps[48], kps[49], kps[50]
+        left_ankle_x, left_ankle_y, left_ankle_conf = kps[15][0], kps[15][1], kps[15][2]
+        right_ankle_x, right_ankle_y, right_ankle_conf = kps[16][0], kps[16][1], kps[16][2]
         
         CONF_THRESHOLD = 0.5
         left_valid = left_ankle_conf > CONF_THRESHOLD
@@ -87,4 +88,4 @@ class PlayerTracker:
         return [p.current_position() for p in self.players.values()]
     
     def get_players_history(self):
-        return [p.history for p in self.players.values()]
+        return {player_id: p.history for player_id, p in self.players.items()}

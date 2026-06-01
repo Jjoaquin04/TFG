@@ -75,7 +75,7 @@ out.release()
 
 import os
 import argparse
-from pipeline import extract, interpolate, render
+from pipeline import extract, posprocessing, render
 
 if __name__ == "__main__": 
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     group = parser.add_mutually_exclusive_group(required=True)
 
     group.add_argument('--extract', type=str, metavar='VIDEO_URL', help='Run extract mode with the provided video URL or path')
-    group.add_argument('--interpolate', type=str, metavar='JSON_RAW', help='Run interpolate mode from a raw json')
+    group.add_argument('--posproccesing', type=str, metavar='JSON_RAW', help='Run posproccesing mode from a raw json')
     group.add_argument('--render', type=str, nargs=2,  metavar=('VIDEO_URL', 'JSON_RAW'), help='Run render mode with the provided video URL or path')
 
     args = parser.parse_args()
@@ -94,15 +94,13 @@ if __name__ == "__main__":
             exit(-1)
         extract(args.extract)
 
-    elif args.interpolate:
-        if not os.path.exists(args.interpolate):
-            print(f"Error: The json file {args.interpolate} does not exist.")
+    elif args.posproccesing:
+        if not os.path.exists(args.posproccesing):
+            print(f"Error: The json file {args.posprocessing} does not exist.")
             exit(-1)
-        interpolate(args.interpolate)
+        posprocessing(args.posprocessing)
 
     elif args.render:
-        print(args.render[0])
-        print(args.render[1])
         if not os.path.exists(args.render[0]) or not os.path.exists(args.render[1]):
             print(f"Error: Some path {args.render[0], args.render[1]} are missing.")
             exit(-1)
