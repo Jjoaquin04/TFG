@@ -8,7 +8,7 @@ class Player:
     bbx: List[float] = None # Bounding box actual: [x1, y1, x2, y2]
     keypoints: List[float] = None # Keypoints actual: [x1, y1, x2, y2, ..., xN, yN]
     real_position: List[float] = None # Posición real en la cancha: [x, y]
-    history: List[dict] = field(default_factory=list)
+    history: dict = field(default_factory=dict)
 
     @property
     def current_position(self) -> List[float]:
@@ -19,18 +19,14 @@ class Player:
         self.keypoints = new_keypoints
         norm_keypoints = self.normalice_keypoints(new_keypoints=new_keypoints)
         self.real_position = new_real_position
-        center_x = new_bbx[0] + new_bbx[2] / 2
-        center_y = new_bbx[1] + new_bbx[3] / 2
 
-        self.history.append({
+        self.history[frame_idx] = ({
             'frame': frame_idx,
             'player_id': self.id,
             'x_min': new_bbx[0],
             'y_min': new_bbx[1],
             'x_max': new_bbx[2],
             'y_max': new_bbx[3],
-            'center_x' : center_x,
-            'center_y' : center_y,
             'real_x': new_real_position[0],
             'real_y': new_real_position[1],
             'keypoints': new_keypoints,
@@ -49,4 +45,4 @@ class Player:
         return norm_keypoints
     
     def to_dataframe(self) -> pd.DataFrame:
-        return pd.DataFrame(self.history)
+        return pd.DataFrame(list(self.history.values()))

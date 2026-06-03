@@ -19,5 +19,9 @@ class Event:
         last_frame = self.impact_frame + self.RANGE_FRAMES
 
         return [initial_frame, last_frame]
-    
 
+    def get_player_id(self):
+        return self.player_id
+
+    def get_impact_frame(self):
+        return self.impact_frame

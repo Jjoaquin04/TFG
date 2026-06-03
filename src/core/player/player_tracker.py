@@ -88,4 +88,4 @@ class PlayerTracker:
         return [p.current_position() for p in self.players.values()]
     
     def get_players_history(self):
-        return {player_id: p.history for player_id, p in self.players.items()}
+        return {int(player_id): p.history for player_id, p in self.players.items()}

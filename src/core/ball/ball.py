@@ -18,8 +18,6 @@ class Ball:
     def update(self,frame_idx: int,  bbx: List[float], real_position: tuple[float, float]):
         self.bbx = bbx
         self.real_position = real_position,
-        center_x = (bbx[0] + bbx[2]) / 2
-        center_y = (bbx[1] + bbx[3]) / 2 
         self.history.append({
             'frame': frame_idx,
             'x_min': bbx[0] if bbx is not None else None,
@@ -28,8 +26,6 @@ class Ball:
             'y_max': bbx[3] if bbx is not None else None,
             'real_x': real_position[0] if real_position is not None else None,
             'real_y': real_position[1] if real_position is not None else None,
-            'center_x': center_x,
-            'center_y': center_y
         })
 
     def to_dataframe(self) -> pd.DataFrame:
