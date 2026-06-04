@@ -4,9 +4,9 @@ import math
 
 class StrokeClassifier:
 
-    def classify_events(self, event_history, players_history, ball_history):
+    def classify_events(self, events_history, players_history, ball_history):
         
-        for event in event_history:
+        for event in events_history:
             impact_frame = event.get_impact_frame()
             frame_window = event.frames_windows
             player_id = event.get_player_id()
@@ -21,6 +21,9 @@ class StrokeClassifier:
                     for frame in range(frame_window[0], frame_window[1] + 1)
                     if player_data.get(frame) is not None and 'norm_keypoints' in player_data.get(frame)
                 ]
+                self.is_service(player_keypoints, mano_pala, event)
+
+        return events_history
 
     def _detect_racket_hand(self, player_data, ball):
         left_wrist = (player_data['keypoints'][27], player_data['keypoints'][28])
@@ -54,12 +57,14 @@ class StrokeClassifier:
         else:
             return False
 
-    def is_cross(self, event_origin, event_destiny):
+    def is_cross(self, event_origin, event_destiny, event):
         if event_origin is None or event_destiny is None:
             return False
         if event_origin[0] * event_destiny[0] < 0 and event_origin[1] * event_destiny[1] < 0:
+            event.trajectory = 'cross'
             return True
         else:
+            event.trajectory = 'parallel'
             return False
     
     def impact_low_hip(self, norm_keypoints, racket_hand):
