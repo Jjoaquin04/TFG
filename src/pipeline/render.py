@@ -46,11 +46,20 @@ def render(video_path: str, interp_json_path: str):
 
         ball_info = ball_data_by_frame.get(frame_idx)
         ball_pos = None
-        if ball_info is not None and not np.isnan(ball_info.get('x_min', np.nan)):
+        
+        ball_detected = False
+        if ball_info is not None:
+            x_min = ball_info.get('x_min')
+            if x_min is not None and not np.isnan(x_min):
+                ball_detected = True
+
+        if ball_detected:
             bbx = [ball_info['x_min'], ball_info['y_min'], ball_info['x_max'], ball_info['y_max']]
             draw_bounding_boxes(img, [bbx])
-            if 'real_x' in ball_info and not np.isnan(ball_info['real_x']):
+            if 'real_x' in ball_info and ball_info['real_x'] is not None and not np.isnan(ball_info['real_x']):
                 ball_pos = np.array([[[ball_info['real_x'], ball_info['real_y']]]], dtype=np.float32)
+        else:
+            cv2.putText(img, f"no deteccion {frame_idx}", (40, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
         players_info = []
         for player_id, player_frames in players_data_by_frame.items():
@@ -69,10 +78,12 @@ def render(video_path: str, interp_json_path: str):
                 players_ids.append(p.get('player_id', 0))
                 if 'real_x' in p and p['real_x'] is not None:
                     players_positions.append([p['real_x'], p['real_y']])
+            
                  
         if players_bbx:
             draw_bounding_boxes(img, players_bbx, players_ids)
 
+        """
         events_info = events_data_by_frame.get(str(frame_idx), [])
         for event in events_info:
             shot_type = event.get('type_of_shot')
@@ -82,6 +93,7 @@ def render(video_path: str, interp_json_path: str):
                 if trajectory:
                     text += f" ({trajectory})"
                 cv2.putText(img, text, (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+        """
         
         img_with_minicourt = mini_court.draw_court(img, players_positions, ball_pos)
         out.write(img_with_minicourt)

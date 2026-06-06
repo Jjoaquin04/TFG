@@ -34,7 +34,7 @@ def extract(url_video):
         if not ret:
             break
         
-        result_keypoints = make_prediction(court_model, img)
+        result_keypoints = make_prediction(court_model, img, conf_grade = 0.25)
         kps_obj = result_keypoints[0].keypoints if isinstance(result_keypoints, list) else result_keypoints.keypoints
         if kps_obj is None or len(kps_obj.xy[0]) < 4:
             continue
@@ -48,7 +48,7 @@ def extract(url_video):
             first_frame = False
 
         result_players = make_track(player_model, img)
-        result_ball = make_prediction(ball_model, img)
+        result_ball = make_prediction(ball_model, img,  conf_grade = 0.60)
 
         boxes, track_ids, keypoints = [], [], None
         if result_players.boxes is not None and len(result_players.boxes) > 0 and result_players.boxes.id is not None:
