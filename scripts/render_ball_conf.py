@@ -4,9 +4,10 @@ import argparse
 import pandas as pd
 from ultralytics import YOLO
 import config
-from pipeline.postprocessing import filter_ball_outliers
+import numpy as np
+from pipeline.postprocessing import filter_ball_outliers, interpolate_ball
 
-def main(video_path, output_path=None, window_size=7, threshold_dist=50):
+def main(video_path, output_path=None, window_size=9, threshold_dist=50):
     if output_path is None:
         video_name = os.path.basename(video_path).split('.')[0]
         output_path = os.path.join('data', 'outputs', 'videos', f"{video_name}_filtered_w{window_size}_d{threshold_dist}.mp4")
@@ -59,7 +60,12 @@ def main(video_path, output_path=None, window_size=7, threshold_dist=50):
     
     df_filtered = filter_ball_outliers(ball_history, window_size=window_size, threshold_dist=threshold_dist)
     
-    print("\n--- Renderizando video filtrado ---")
+    print("\n--- Aplicando Interpolación Selectiva ---")
+    interpolated_list = interpolate_ball(df_filtered)
+    # Convertimos a un diccionario para acceder rápido por frame
+    interp_dict = {int(row['frame']): row for row in interpolated_list}
+    
+    print("\n--- Renderizando video final (Filtrado + Interpolado) ---")
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0) 
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
     
@@ -71,25 +77,33 @@ def main(video_path, output_path=None, window_size=7, threshold_dist=50):
             
         print(f"Renderizando frame {frame_idx}/{total_frames}", end='\r')
         
-        if frame_idx in df_filtered.index:
-            row = df_filtered.loc[frame_idx]
+        detected = False
+        if frame_idx in interp_dict:
+            row = interp_dict[frame_idx]
             
-            if pd.notna(row['x_min']):
+            # Chequeamos si la pelota está presente en este frame
+            if pd.notna(row.get('x_min')):
                 x1, y1, x2, y2 = int(row['x_min']), int(row['y_min']), int(row['x_max']), int(row['y_max'])
-                conf = row.get('conf', 0)
-            
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                
+                # Si el frame original tenía 'conf', fue detectado por YOLO. 
+                # Si no tiene 'conf' o es NaN, es que ha sido interpolado artificialmente.
+                conf = row.get('conf', np.nan)
+                
                 if pd.notna(conf):
+                    # Dibujo VERDE para detecciones reales de YOLO
+                    color = (0, 255, 0)
                     text = f"{conf:.2f}"
-                    cv2.putText(frame, text, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                else:
+                    # Dibujo AMARILLO para los frames que son fruto de la interpolación
+                    color = (0, 255, 255)
+                    text = "Interp"
+                
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(frame, text, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
                 detected = True
-            else:
-                detected = False
-        else:
-            detected = False
-            
+                
         if not detected:
-            cv2.putText(frame, "no deteccion o outlier", (40, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+            cv2.putText(frame, "no deteccion / gap > 8", (40, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             
         out.write(frame)
         frame_idx += 1
@@ -102,7 +116,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Genera video de la pelota filtrando outliers')
     parser.add_argument('video', type=str, help='Ruta al video de entrada')
     parser.add_argument('--out', type=str, default=None, help='Ruta de salida del video')
-    parser.add_argument('--window', type=int, default=7, help='Tamano de la ventana de la media movil')
+    parser.add_argument('--window', type=int, default=8, help='Tamano de la ventana de la media movil')
     parser.add_argument('--dist', type=float, default=50.0, help='Umbral de distancia maxima respecto a la media')
     args = parser.parse_args()
     main(args.video, args.out, args.window, args.dist)

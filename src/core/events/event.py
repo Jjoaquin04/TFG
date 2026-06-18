@@ -10,6 +10,7 @@ class Event:
     trajectory: str = None
     origin_cord: List[float] = None
     destiny_cord: List[float] = None
+    score: float = 999.0
 
     RANGE_FRAMES = 10
     
@@ -25,3 +26,6 @@ class Event:
 
     def get_impact_frame(self):
         return self.impact_frame
+    
+    def get_score(self):
+        return self.score

@@ -23,16 +23,14 @@ def postprocessing(raw_json_path: str):
         return None
     
     players_history = filter_players(players_history)
-    ball_history = filter_ball_outliers(ball_history)
-    
-    #interpolated_ball = interpolate_ball(ball_history)
     players_history = calculate_players_centers(players_history)
-    
-    """
+    ball_history = filter_ball_outliers(ball_history)
+    interpolated_ball = interpolate_ball(ball_history)
+
     event_tracker = EventTracker()
     event_tracker.track(interpolated_ball, players_history)
-    # stroke_classifier = StrokeClassifier()
-    # events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball)
+    #stroke_classifier = StrokeClassifier()
+    #events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball)
     events = event_tracker.get_history()
     
     events_dict = {}
@@ -41,8 +39,7 @@ def postprocessing(raw_json_path: str):
             frame_key = str(e.impact_frame)
             if frame_key not in events_dict:
                 events_dict[frame_key] = []
-            # Serialize dataclass to dict, drop complex properties
-            event_data = {
+                event_data = {
                 'impact_frame': e.impact_frame,
                 'player_id': e.player_id,
                 'type_of_shot': getattr(e, 'type_of_shot', None),
@@ -51,11 +48,9 @@ def postprocessing(raw_json_path: str):
                 'destiny_cord': e.destiny_cord
             }
             events_dict[frame_key].append(event_data)
-    """
-    # Reasignar para que el json resultante tenga los centers de la bola y jugadores
-    data['ball'] = ball_history
+    data['ball'] = interpolated_ball
     data['players'] = players_history
-    #data['events'] = events_dict
+    data['events'] = events_dict
     os.makedirs(os.path.dirname(interp_path), exist_ok=True)
     with open(interp_path, 'w') as f:
         json.dump(data, f, indent=2)
@@ -66,14 +61,11 @@ def postprocessing(raw_json_path: str):
 def interpolate_ball(ball_df):
     df_copy = ball_df.copy()
     nan_size = group_nan(df_copy)
-
     df_ball_interp = ball_df.interpolate(method='linear', limit_direction='both')
     is_big = nan_size > 8
 
     df_ball_interp.loc[is_big, ['x_min', 'y_min', 'x_max', 'y_max','center_x', 'center_y']] = None
-    return df_ball_interp
-
-    #return df_ball_interp.reset_index().to_dict(orient='records')
+    return df_ball_interp.reset_index().to_dict(orient='records')
 
 def calculate_players_centers(dict_players):
     for _, player_data in dict_players.items():
@@ -103,7 +95,7 @@ def group_nan(ball_frame: pd.DataFrame):
     len_map = nan_groups.map(len_consecutive_nan).fillna(0)
     return len_map
 
-def filter_ball_outliers(ball_history, window_size=7, threshold_dist=50):
+def filter_ball_outliers(ball_history, window_size=8, threshold_dist=50.0):
     
     df_ball = calculate_centers(ball_history)
     df_copy = df_ball.copy()
@@ -114,7 +106,5 @@ def filter_ball_outliers(ball_history, window_size=7, threshold_dist=50):
     deviation = np.sqrt(((median_x - df_copy['center_x'])**2) + ((median_y - df_copy['center_y'])**2))
     atipic = deviation > threshold_dist
     df_copy.loc[atipic, ['x_min', 'y_min', 'x_max', 'y_max','center_x', 'center_y']] = None
-
-    df_copy = interpolate_ball(df_copy)
 
     return df_copy

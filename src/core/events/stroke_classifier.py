@@ -1,11 +1,11 @@
 from core.events import event_tracker
 from core import events
+from utils.event.event_utils import detect_racket_hand
 import math
 
 class StrokeClassifier:
 
     def classify_events(self, events_history, players_history, ball_history):
-        
         for event in events_history:
             impact_frame = event.get_impact_frame()
             frame_window = event.frames_windows
@@ -14,28 +14,15 @@ class StrokeClassifier:
             if player_data is not None:
                 player_info_frame = player_data.get(impact_frame)
                 ball_data = ball_history.get(impact_frame)
-                mano_pala = self._detect_racket_hand(player_info_frame, ball_data)
-
+                racket_hand = detect_racket_hand(player_info_frame, ball_data)
                 player_keypoints = [
                     player_data.get(frame)['norm_keypoints']
                     for frame in range(frame_window[0], frame_window[1] + 1)
                     if player_data.get(frame) is not None and 'norm_keypoints' in player_data.get(frame)
                 ]
-                self.is_service(player_keypoints, mano_pala, event)
+                self.is_service(player_keypoints, racket_hand, event)
 
-        return events_history
-
-    def _detect_racket_hand(self, player_data, ball):
-        left_wrist = (player_data['keypoints'][27], player_data['keypoints'][28])
-        right_wrist = (player_data['keypoints'][30], player_data['keypoints'][31])
-        
-        left_distance = math.dist(left_wrist, (ball['center_x'], ball['center_y']))
-        right_distance = math.dist(right_wrist, (ball['center_x'], ball['center_y']))
-
-        if left_distance < right_distance:
-            return 'left'
-        else:
-            return 'right'    
+        return events_history    
 
     def is_service(self,player_skeleton, racket_hand, event):
         if self.check_line_serve(event.origin_cord) and self.is_cross(event.origin_cord, event.destiny_cord) and self.impact_low_hip(player_skeleton[event.impact_frame], racket_hand) and self.check_soulder_assembly(player_skeleton, event.impact_frame, racket_hand):
@@ -43,6 +30,7 @@ class StrokeClassifier:
             return True
         else:
             return False 
+
     def check_line_serve(self, event_origin):
         if event_origin is None:
             return False

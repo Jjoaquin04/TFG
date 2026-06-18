@@ -88,4 +88,25 @@ class PlayerTracker:
         return [p.current_position() for p in self.players.values()]
     
     def get_players_history(self):
-        return {int(player_id): p.history for player_id, p in self.players.items()}
+        # Mapeamos los IDs de YOLO a IDs semánticos fijos (1, 2, 3, 4) según la posición
+        id_mapping = {}
+        for index, item in enumerate(self.ids_order):
+            # index 0 -> 1 (Top-Left), index 1 -> 2 (Top-Right)
+            # index 2 -> 3 (Bottom-Left), index 3 -> 4 (Bottom-Right)
+            id_mapping[item['yolo_id']] = index + 1
+            
+        history = {}
+        for player_id, p in self.players.items():
+            # Si el tracker no perdiera el ID, siempre lo encontrará en el mapping
+            mapped_id = id_mapping.get(player_id, int(player_id))
+            
+            # Actualizamos también el 'player_id' por dentro de los registros para que coincida
+            mapped_player_history = {}
+            for frame_idx, data in p.history.items():
+                new_data = data.copy()
+                new_data['player_id'] = mapped_id
+                mapped_player_history[frame_idx] = new_data
+                
+            history[mapped_id] = mapped_player_history
+            
+        return history

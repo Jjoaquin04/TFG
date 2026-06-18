@@ -83,18 +83,25 @@ def render(video_path: str, interp_json_path: str):
         if players_bbx:
             draw_bounding_boxes(img, players_bbx, players_ids)
 
-        """
-        events_info = events_data_by_frame.get(str(frame_idx), [])
-        for event in events_info:
-            shot_type = event.get('type_of_shot')
-            trajectory = event.get('trajectory')
-            if shot_type:
-                text = f"{shot_type.upper()}"
-                if trajectory:
-                    text += f" ({trajectory})"
-                cv2.putText(img, text, (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-        """
         
+        # (Mantenemos un contador de frames para que el texto dure visible en pantalla)
+        if not hasattr(render, 'hit_counter'):
+            render.hit_counter = 0
+            render.current_hit_text = ""
+            
+        events_info = events_data_by_frame.get(str(frame_idx), [])
+        if events_info:
+            event = events_info[0]
+            player_id = str(event['player_id'])
+            event_impact_frame = str(event['impact_frame'])
+            # Activamos el contador para que dure 10 frames (~0.3 seg)
+            render.hit_counter = 10
+            render.current_hit_text = f"HIT! (Player {player_id}) - Frame {event_impact_frame}"
+            
+        if render.hit_counter > 0:
+            cv2.putText(img, render.current_hit_text, (60, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 4)
+            render.hit_counter -= 1
+
         img_with_minicourt = mini_court.draw_court(img, players_positions, ball_pos)
         out.write(img_with_minicourt)
 
