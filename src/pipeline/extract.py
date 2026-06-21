@@ -55,7 +55,7 @@ def extract(url_video):
             boxes = result_players.boxes.xyxy.cpu().numpy() 
             track_ids = result_players.boxes.id.cpu().numpy().astype(int)
             keypoints = result_players.keypoints.data.cpu().numpy() if hasattr(result_players, 'keypoints') and result_players.keypoints is not None else None
-            keypoints_norm = result_players.keypoints.xyn.numpy()
+            keypoints_norm = result_players.keypoints.xyn.cpu().numpy()
 
         player_tracker.update(track_ids, boxes, keypoints, keypoints_norm, frame_idx)
         
