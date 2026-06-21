@@ -25,14 +25,21 @@ def postprocessing(raw_json_path: str):
     players_history = filter_players(players_history)
     players_history = calculate_players_centers(players_history)
     ball_history = filter_ball_outliers(ball_history)
-    interpolated_ball = interpolate_ball(ball_history)
-
+    interpolated_ball_list = interpolate_ball(ball_history)
+    #Transformamos a dict para acceder a los datos de manera comoda en ambas fases
+    interpolated_ball_dict = {b['frame']: b for b in interpolated_ball_list}
     event_tracker = EventTracker()
-    event_tracker.track(interpolated_ball, players_history)
-    #stroke_classifier = StrokeClassifier()
-    #events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball)
+    event_tracker.track(interpolated_ball_dict, players_history)
+    stroke_classifier = StrokeClassifier()
+    events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball_dict)
     events = event_tracker.get_history()
     
+    # Asignar la mano de la pala dominante al diccionario general de cada jugador
+    players_hands = stroke_classifier.get_players_racket_hands()
+    for pid, hand in players_hands.items():
+        if pid in players_history:
+            players_history[pid]['racket_hand'] = hand
+            
     events_dict = {}
     if events:
         for e in events:
@@ -48,7 +55,8 @@ def postprocessing(raw_json_path: str):
                 'destiny_cord': e.destiny_cord
             }
             events_dict[frame_key].append(event_data)
-    data['ball'] = interpolated_ball
+    # Guardamos en JSON la lista original para mantener la compatibilidad con el render
+    data['ball'] = interpolated_ball_list
     data['players'] = players_history
     data['events'] = events_dict
     os.makedirs(os.path.dirname(interp_path), exist_ok=True)

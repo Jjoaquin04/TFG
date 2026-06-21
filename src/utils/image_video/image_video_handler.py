@@ -105,3 +105,25 @@ def draw_bounding_boxes(frame, bbx, ids=None):
             cv2.putText(frame, f'ID: {id_val}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
     return frame
+
+
+def draw_comet_tail(frame, pt1, pt2, color, num_points):
+
+    bg_color = (220, 220, 220) # Bg color aproximado
+    pts_x = np.linspace(pt1[0], pt2[0], num_points)
+    pts_y = np.linspace(pt1[1], pt2[1], num_points)
+    
+    for i in range(num_points):
+        ratio = i / (num_points - 1)
+        # como crede el radio
+        radius = int(2 + 2 * ratio)
+        
+        # Interpolar efecto de desvanecimiento hacia la cola
+        b = int(bg_color[0] * (1 - ratio) + color[0] * ratio)
+        g = int(bg_color[1] * (1 - ratio) + color[1] * ratio)
+        r = int(bg_color[2] * (1 - ratio) + color[2] * ratio)
+        cv2.circle(frame, (int(pts_x[i]), int(pts_y[i])), radius, (b, g, r), -1)
+    
+    cv2.circle(frame, pt2, 7, (255, 255, 255), 1)
+    
+    return frame

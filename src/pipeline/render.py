@@ -33,6 +33,11 @@ def render(video_path: str, interp_json_path: str):
     mini_court = MiniCourt(frame_width)
 
     print("Starting renderization process...")
+    
+    hit_counter = 0
+    current_hit_line = None
+    current_event_text = []
+
     while cap.isOpened():
         ret, img = cap.read()
         if not ret:
@@ -56,10 +61,6 @@ def render(video_path: str, interp_json_path: str):
         if ball_detected:
             bbx = [ball_info['x_min'], ball_info['y_min'], ball_info['x_max'], ball_info['y_max']]
             draw_bounding_boxes(img, [bbx])
-            if 'real_x' in ball_info and ball_info['real_x'] is not None and not np.isnan(ball_info['real_x']):
-                ball_pos = np.array([[[ball_info['real_x'], ball_info['real_y']]]], dtype=np.float32)
-        else:
-            cv2.putText(img, f"no deteccion {frame_idx}", (40, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
         players_info = []
         for player_id, player_frames in players_data_by_frame.items():
@@ -78,31 +79,46 @@ def render(video_path: str, interp_json_path: str):
                 players_ids.append(p.get('player_id', 0))
                 if 'real_x' in p and p['real_x'] is not None:
                     players_positions.append([p['real_x'], p['real_y']])
-            
-                 
+                    
         if players_bbx:
             draw_bounding_boxes(img, players_bbx, players_ids)
 
-        
-        # (Mantenemos un contador de frames para que el texto dure visible en pantalla)
-        if not hasattr(render, 'hit_counter'):
-            render.hit_counter = 0
-            render.current_hit_text = ""
-            
         events_info = events_data_by_frame.get(str(frame_idx), [])
         if events_info:
             event = events_info[0]
-            player_id = str(event['player_id'])
-            event_impact_frame = str(event['impact_frame'])
-            # Activamos el contador para que dure 10 frames (~0.3 seg)
-            render.hit_counter = 10
-            render.current_hit_text = f"HIT! (Player {player_id}) - Frame {event_impact_frame}"
+            # Contador de frames
+            hit_counter = 15
+            current_hit_line = (event.get('origin_cord'), event.get('destiny_cord'))
             
-        if render.hit_counter > 0:
-            cv2.putText(img, render.current_hit_text, (60, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 4)
-            render.hit_counter -= 1
+            stroke = event.get('type_of_shot', 'HIT')
+            if stroke is None: stroke = 'HIT'
+                
+            player = event.get('player_id', '?')
+            impact = event.get('impact_frame', '?')
+            traj = event.get('trajectory', 'N/A')
+            
+            hand = "Unknown"
+            player_global_data = players_data_by_frame.get(str(player), {})
+            hand = player_global_data.get('racket_hand', "Unknown")
 
-        img_with_minicourt = mini_court.draw_court(img, players_positions, ball_pos)
+            current_event_text = [
+                f"Impact Frame: {impact}",
+                f"Player: {player} ({hand} hand)",
+                f"Shot: {stroke.upper()}",
+                f"Trajectory: {traj}"
+            ]
+        
+        trajectory_line = None
+        if hit_counter > 0:
+            hit_counter -= 1
+            trajectory_line = current_hit_line
+            if current_event_text:
+                y_offset = 60
+                for line in current_event_text:
+                    cv2.putText(img, line, (40, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                    y_offset += 30
+
+        img_with_minicourt = mini_court.draw_court(img, players_positions, trajectory_line)
         out.write(img_with_minicourt)
 
     cap.release()

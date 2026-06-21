@@ -2,7 +2,7 @@ from ast import Dict
 import math
 import core.events.direction_change_detector as direction_detector
 from .event import Event
-from utils.event.event_utils import detect_racket_hand
+from utils.event.event_utils import calculate_min_hand_distance
 from typing import List
 
 class EventTracker:
@@ -11,7 +11,7 @@ class EventTracker:
         self.history: List[Event] = []
         self.last_event_frame = -999
 
-    def track(self, ball_list, player_history):
+    def track(self, ball_dict, player_history):
         # --- CLuster NMS ---
         candidate_cluster = []
         CLUSTER_MAX_GAP = 7  # Frames máximos sin meter nada en el cluster
@@ -20,7 +20,7 @@ class EventTracker:
         last_valid_frame = None
         last_angle = None
 
-        for ball in ball_list:
+        for ball in ball_dict.values():
             current_ball = [ball['center_x'], ball['center_y']]
             print(f"frame: {ball['frame']} -> {current_ball[0], current_ball[1]}\n")
             if candidate_cluster and (ball['frame'] - candidate_cluster[-1]['frame'] > CLUSTER_MAX_GAP):
@@ -77,11 +77,19 @@ class EventTracker:
 
                         if best_dist < 300.0:
                             impact_frame_estimated = last_valid_frame + (none_count // 2) #Frame de impacto estimado la mitad de la oclusion
+                            
+                            # Obtener coordenadas de origen desde el jugador
+                            player_record = player_history.get(best_player, {}).get(str(impact_frame_estimated))
+                            origin_cord = None
+                            if player_record and player_record.get('real_x') is not None and not math.isnan(player_record.get('real_x')):
+                                origin_cord = [player_record['real_x'], player_record['real_y']]
+
                             if impact_frame_estimated - self.last_event_frame >= 15:
                                 event = Event(
                                     impact_frame=impact_frame_estimated,
                                     player_id=best_player,
-                                    score=best_dist
+                                    score=best_dist, 
+                                    origin_cord = origin_cord
                                 )
                                 print(f"  -> [!] EVENTO OCLUSIÓN AÑADIDO (Frame estimado: {impact_frame_estimated})")
                                 self.history.append(event)
@@ -99,10 +107,16 @@ class EventTracker:
                     closest_player, nearest_distance = self._closest_player(current_ball, ball['frame'], player_history)
                     print(f"  -> Distancia a jugador {closest_player}: {nearest_distance:.1f} px (Umbral Normal: 100.0)")
                     if nearest_distance < 100.0:
+                        origin_cord = None
+                        player_record = player_history.get(closest_player, {}).get(str(ball['frame']))
+                        if player_record and player_record.get('real_x') is not None and not math.isnan(player_record.get('real_x')):
+                            origin_cord = [player_record['real_x'], player_record['real_y']]
+                            
                         candidate_cluster.append({
                             'frame': ball['frame'],
                             'distance': nearest_distance,
-                            'player_id': closest_player
+                            'player_id': closest_player, 
+                            'origin_cord': origin_cord
                         })
                         print(f"  -> Añadido a candidato NMS temporal (Dist: {nearest_distance:.1f}).")
                     else:
@@ -113,6 +127,22 @@ class EventTracker:
             
         #Ejecutar el cluster si existe cuando acabamos
         self._process_cluster(candidate_cluster)
+
+        # --- ASIGNAR DESTINY CORD ---
+        for i in range(len(self.history)):
+            current_event = self.history[i]
+            if i < len(self.history) - 1:
+                next_event = self.history[i+1]
+                current_event.destiny_cord = next_event.origin_cord
+            else:
+                # Para el último evento, buscamos la última posición válida de la pelota
+                last_ball = None
+                for ball in reversed(list(ball_dict.values())):
+                    if ball.get('real_x') is not None and not math.isnan(ball.get('real_x')):
+                        last_ball = ball
+                        break
+                if last_ball:
+                    current_event.destiny_cord = [last_ball['real_x'], last_ball['real_y']]
 
     def _process_cluster(self, candidate_cluster):
         if not candidate_cluster:
@@ -165,6 +195,7 @@ class EventTracker:
         event = Event(
             impact_frame=best['frame'],
             player_id=best['player_id'],
+            origin_cord=best.get('origin_cord'),
             score=best['score']
         )
         print(f"  -> [NMS] EVENTO AÑADIDO (Frame: {best['frame']}, Dist Real: {best['distance']:.1f} px, Score: {best['score']:.1f}) elegido de un cluster de {len(candidate_cluster)} frames.")
@@ -181,7 +212,7 @@ class EventTracker:
                 continue
                 
             point_ball = [current_ball[0], current_ball[1]]
-            racket_hand, distance = detect_racket_hand(record, point_ball)
+            distance = calculate_min_hand_distance(record, point_ball)
             if distance < nearest_distance:
                 id = player_id
                 nearest_distance = distance

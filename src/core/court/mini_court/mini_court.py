@@ -1,9 +1,7 @@
 import cv2
 import numpy as np
-
-
 import config
-from utils import draw_edges_court_connections
+from utils import draw_edges_court_connections, draw_comet_tail
 
 
 class MiniCourt():
@@ -58,15 +56,15 @@ class MiniCourt():
         self.end_x = int(frame_width - self.margin)
         self.end_y = int(self.start_y + self.rectangle_height)
 
-    def draw_court(self, frame, player_positions, ball_position):
-        # 1. Dibujar el fondo del minimapa (margen exterior)
+    def draw_court(self, frame, player_positions, trajectory_line):
+        #1. Dibujar el fondo del minimapa (margen exterior)
         rectangle = frame[self.start_y:self.end_y, self.start_x:self.end_x]
         rectangle_white = np.ones(rectangle.shape, dtype=np.uint8) * 255
         res = cv2.addWeighted(rectangle, 0.5, rectangle_white, 0.5, 0) 
         frame[self.start_y:self.end_y, self.start_x:self.end_x] = res
 
         for position in player_positions:
-            # Aplicar homografía inversa para obtener la posición en el mini court
+            #Aplicar homografía inversa para obtener la posición en el mini court
             point_array = np.array([[position]], dtype=np.float32)
             mini_player_position = cv2.perspectiveTransform(point_array, self.H_inv)
         
@@ -74,14 +72,18 @@ class MiniCourt():
             mini_player_y = int(np.clip(mini_player_position[0][0][1], self.court_start_y, self.court_end_y))
         
             cv2.circle(frame, (mini_player_x, mini_player_y), radius=5, color=(0, 0, 255), thickness=-1)
-
-        if ball_position is not None and len(ball_position) > 0 and not np.isnan(ball_position).all():
-            try:
-                mini_ball_position = cv2.perspectiveTransform(ball_position, self.H_inv) 
-                mini_ball_x = int(np.clip(mini_ball_position[0][0][0], self.court_start_x - 5, self.court_end_x + 5))
-                mini_ball_y = int(np.clip(mini_ball_position[0][0][1], self.court_start_y - 5, self.court_end_y + 5))       
-                cv2.circle(frame, (mini_ball_x, mini_ball_y), radius=5,  color=(255,255,51), thickness=-1)
-            except cv2.error:
-                pass
-        
+                
+        if trajectory_line is not None:
+            origin_cord, destiny_cord = trajectory_line
+            if origin_cord is not None and destiny_cord is not None:
+                pt1 = cv2.perspectiveTransform(np.array([[[origin_cord[0], origin_cord[1]]]], dtype=np.float32), self.H_inv)
+                pt2 = cv2.perspectiveTransform(np.array([[[destiny_cord[0], destiny_cord[1]]]], dtype=np.float32), self.H_inv)
+                
+                pt1_x = int(np.clip(pt1[0][0][0], self.court_start_x, self.court_end_x))
+                pt1_y = int(np.clip(pt1[0][0][1], self.court_start_y, self.court_end_y))
+                pt2_x = int(np.clip(pt2[0][0][0], self.court_start_x, self.court_end_x))
+                pt2_y = int(np.clip(pt2[0][0][1], self.court_start_y, self.court_end_y))
+                
+                frame = draw_comet_tail(frame, (pt1_x, pt1_y), (pt2_x, pt2_y), color=(51, 255, 255), num_points=17)
+                
         return draw_edges_court_connections(frame, self.mini_court_points, is_mini_court=True)
