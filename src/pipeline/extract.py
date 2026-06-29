@@ -13,9 +13,9 @@ def extract(url_video):
     # ──────── Variables and initialization ────────────────────────────────────
     cap, _, _, _  = read_video(url_video)
 
-    court_model = YOLO(config.KEYPOINTS_COURT_MODEL)
-    player_model = YOLO(config.PLAYER_POSE_MODEL)
-    ball_model = YOLO(config.BALL_MODEL)
+    court_model = YOLO(config.KEYPOINTS_COURT_MODEL, task='pose')
+    player_model = YOLO(config.PLAYER_POSE_MODEL, task='pose')
+    ball_model = YOLO(config.BALL_MODEL, task='detect')
 
     player_tracker = PlayerTracker(homography_matrix=None)
     ball_tracker = BallTracker(homography_matrix=None)

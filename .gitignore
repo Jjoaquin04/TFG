@@ -9,6 +9,12 @@ venv/
 env/
 .env
 
+# OpenVino Model
+
+models/yolov8-ball-bbx_openvino_model
+models/yolov8-court-keypoint_openvino_model
+models/yolov8-player-pose_openvino_model
+
 # Configuración del IDE
 .vscode/
 .idea/

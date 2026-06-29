@@ -2,10 +2,17 @@
 import json
 import numpy as np
 
+USE_OPEN_VINO = True
 
-KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint.pt'
-PLAYER_POSE_MODEL = 'models/yolov8-player-pose.pt'
-BALL_MODEL = 'models/yolov8-ball-bbx.pt'
+if USE_OPEN_VINO:
+    KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint_openvino_model'
+    PLAYER_POSE_MODEL = 'models/yolov8-player-pose_openvino_model'
+    BALL_MODEL = 'models/yolov8-ball-bbx_openvino_model'
+else:
+    KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint.pt'
+    PLAYER_POSE_MODEL = 'models/yolov8-player-pose.pt'
+    BALL_MODEL = 'models/yolov8-ball-bbx.pt'
+
 RAW_JSON_FOLDER_PATH = 'data/outputs/json/raw_json'
 INTERP_JSON_PATH = 'data/outputs/json'
 
