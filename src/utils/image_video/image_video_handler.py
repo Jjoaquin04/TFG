@@ -15,6 +15,16 @@ def close_window():
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+def video_reader(cap, queue):
+    while cap.isOpened():
+        ret, frame = cap.read()
+        frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        if not ret:
+            queue.put((-1, None))
+            break
+
+        queue.put((frame_idx, frame))        
+
 def get_roi_clamped(image, x_center, y_center, half_w, half_h):
     # Devuelve la ROI y sus coordenadas de origen (para mapear de vuelta).
     x0 = max(int(x_center) - half_w, 0)

@@ -1,16 +1,18 @@
 import json
 import os
-
 import cv2
 import numpy as np
 import config
+from queue import Queue
+from threading import Thread
 from ultralytics import YOLO
 from core import BallTracker ,KeypointsCourt, PlayerTracker
-from utils import read_video, make_prediction, make_track
+from utils import read_video, make_prediction_batch, make_track_batch, video_reader
 
 def extract(url_video):
     
     # ──────── Variables and initialization ────────────────────────────────────
+    BATCH_SIZE = 16
     cap, _, _, _  = read_video(url_video)
 
     court_model = YOLO(config.KEYPOINTS_COURT_MODEL, task='pose')
@@ -22,51 +24,68 @@ def extract(url_video):
 
     keypoints_court = KeypointsCourt()
 
-    first_frame = True
+    queue = Queue(maxsize=128)
+    producer_thread = Thread(target=video_reader, args=(cap, queue))
+    producer_thread.start()
     # ───────────────────────────────────────────────────────
-    total_frame = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-    while cap.isOpened():
 
-        ret, img = cap.read()
-        frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    is_first_frame = True
+    while True:
 
-        print(f"Frame {frame_idx}/{total_frame}\n")
-        if not ret:
-            break
-        
-        if first_frame:
-            result_keypoints = make_prediction(court_model, img, conf_grade = 0.25)
+        batch_frames = []
+        batch_idx = []
+        while len(batch_frames) < BATCH_SIZE:
+
+            (frame_idx, frame) = queue.get()
+
+            if frame_idx == -1 and frame is None:
+                break
+            
+            batch_frames.append(frame)
+            batch_idx.append(frame_idx)
+
+        if len(batch_frames) == 0:
+                break    
+
+        if is_first_frame:
+
+            result_keypoints = make_prediction_batch(court_model, batch_frames[0], conf_grade = 0.25)
             kps_obj = result_keypoints[0].keypoints if isinstance(result_keypoints, list) else result_keypoints.keypoints
             if kps_obj is None or len(kps_obj.xy[0]) < 4:
                 continue
                 
             kps = kps_obj.xy.cpu().numpy()
-            keypoints_court.refine_points(img, kps[0])
+            keypoints_court.refine_points(batch_frames[0], kps[0])
             keypoints_court.extract_rest_of_kpoints()
             player_tracker.homography = keypoints_court.H
             ball_tracker.homography = keypoints_court.H
-            first_frame = False
+            is_first_frame = False
 
-        result_players = make_track(player_model, img)
-        result_ball = make_prediction(ball_model, img,  conf_grade = 0.40)
+        result_players = make_track_batch(player_model, batch_frames)
+        result_ball = make_prediction_batch(ball_model, batch_frames,  conf_grade = 0.40)
 
-        boxes, track_ids, keypoints = [], [], None
-        if result_players.boxes is not None and len(result_players.boxes) > 0 and result_players.boxes.id is not None:
-            boxes = result_players.boxes.xyxy.cpu().numpy() 
-            track_ids = result_players.boxes.id.cpu().numpy().astype(int)
-            keypoints = result_players.keypoints.data.cpu().numpy() if hasattr(result_players, 'keypoints') and result_players.keypoints is not None else None
-            keypoints_norm = result_players.keypoints.xyn.cpu().numpy()
+        for i in range(len(batch_frames)):
+            res_players = result_players[i]
+            res_ball = result_ball[i]
+            frame_idx = batch_idx[i]
 
-        player_tracker.update(track_ids, boxes, keypoints, keypoints_norm, frame_idx)
+            boxes, track_ids, keypoints = [], [], None
+            if res_players.boxes is not None and len(res_players.boxes) > 0 and res_players.boxes.id is not None:
+                boxes = res_players.boxes.xyxy.cpu().numpy() 
+                track_ids = res_players.boxes.id.cpu().numpy().astype(int)
+                keypoints = res_players.keypoints.data.cpu().numpy() if hasattr(res_players, 'keypoints') and res_players.keypoints is not None else None
+                keypoints_norm = res_players.keypoints.xyn.cpu().numpy()
+
+            player_tracker.update(track_ids, boxes, keypoints, keypoints_norm, frame_idx)
         
-        if hasattr(result_ball, 'boxes') and result_ball.boxes is not None:
-            ball_boxes = result_ball.boxes.xyxy.cpu().numpy()
-            if len(ball_boxes) > 0:
-                ball_tracker.update(ball_boxes[0], frame_idx) 
+            if hasattr(res_ball, 'boxes') and res_ball.boxes is not None:
+                ball_boxes = res_ball.boxes.xyxy.cpu().numpy()
+                if len(ball_boxes) > 0:
+                    ball_tracker.update(ball_boxes[0], frame_idx) 
+                else:
+                    ball_tracker.update(None, frame_idx)
             else:
                 ball_tracker.update(None, frame_idx)
-        else:
-            ball_tracker.update(None, frame_idx)
         
     cap.release()   
 

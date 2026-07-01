@@ -7,6 +7,7 @@ class PlayerTracker:
     def __init__(self, homography_matrix):
         self.players: dict[int, Player] = {}
         self.ids_order = []
+        self.first_frame = True
         self.homography = homography_matrix
 
     def update(self, ids, boxes, keypoints,keypoints_norm, frame_idx): # index 0: Top-Left-Player, index 1: Top-Right-Player, index 2: Bottom-Left-Player, index 3: Bottom-Right-Player
@@ -34,7 +35,7 @@ class PlayerTracker:
 
 
     def add_and_reorder_yoloIds(self,boxes, ids):
-
+        
         for i in range(len(boxes)):
             x_min, _, x_max, y_max = boxes[i]
             (center_x,bottom_y) = (x_min + x_max) / 2 , y_max
