@@ -19,8 +19,8 @@ def extract(url_video):
     player_model = YOLO(config.PLAYER_POSE_MODEL, task='pose')
     ball_model = YOLO(config.BALL_MODEL, task='detect')
 
-    player_tracker = PlayerTracker(homography_matrix=None)
-    ball_tracker = BallTracker(homography_matrix=None)
+    player_tracker = PlayerTracker()
+    ball_tracker = BallTracker()
 
     keypoints_court = KeypointsCourt()
 
@@ -57,8 +57,6 @@ def extract(url_video):
             kps = kps_obj.xy.cpu().numpy()
             keypoints_court.refine_points(batch_frames[0], kps[0])
             keypoints_court.extract_rest_of_kpoints()
-            player_tracker.homography = keypoints_court.H
-            ball_tracker.homography = keypoints_court.H
             is_first_frame = False
 
         result_players = make_track_batch(player_model, batch_frames)
@@ -69,14 +67,13 @@ def extract(url_video):
             res_ball = result_ball[i]
             frame_idx = batch_idx[i]
 
-            boxes, track_ids, keypoints = [], [], None
+            boxes, ids, keypoints = [], [], None
             if res_players.boxes is not None and len(res_players.boxes) > 0 and res_players.boxes.id is not None:
                 boxes = res_players.boxes.xyxy.cpu().numpy() 
-                track_ids = res_players.boxes.id.cpu().numpy().astype(int)
+                ids = res_players.boxes.id.cpu().numpy().astype(int)
                 keypoints = res_players.keypoints.data.cpu().numpy() if hasattr(res_players, 'keypoints') and res_players.keypoints is not None else None
-                keypoints_norm = res_players.keypoints.xyn.cpu().numpy()
 
-            player_tracker.update(track_ids, boxes, keypoints, keypoints_norm, frame_idx)
+            player_tracker.update(ids, boxes, keypoints, frame_idx)
         
             if hasattr(res_ball, 'boxes') and res_ball.boxes is not None:
                 ball_boxes = res_ball.boxes.xyxy.cpu().numpy()
