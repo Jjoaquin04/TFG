@@ -10,7 +10,7 @@ class PlayerTracker:
     def update(self, ids, boxes, keypoints, frame_idx): 
         
         for i in range(len(boxes)):
-            player_id = ids[i]
+            player_id = int(ids[i])
             bbx = boxes[i].tolist()
             kps = keypoints[i].tolist() if keypoints is not None else []
             

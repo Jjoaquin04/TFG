@@ -10,11 +10,11 @@ from ultralytics import YOLO
 from core import BallTracker ,KeypointsCourt, PlayerTracker
 from utils import read_video, make_prediction_batch, make_track_batch, video_reader
 
-def extract(url_video):
+def extract_mt_b1(url_video):
     
     inicio = time.time()
     # ──────── Variables and initialization ────────────────────────────────────
-    BATCH_SIZE = 32
+    BATCH_SIZE = 1
     cap, _, _, _  = read_video(url_video)
 
     court_model = YOLO(config.KEYPOINTS_COURT_MODEL, task='pose')
@@ -37,7 +37,6 @@ def extract(url_video):
 
         batch_frames = []
         batch_idx = []
-
         while len(batch_frames) < BATCH_SIZE:
 
             (frame_idx, frame) = queue.get()
@@ -54,7 +53,7 @@ def extract(url_video):
 
         if is_first_frame:
 
-            result_keypoints = make_prediction_batch(court_model, batch_frames[0], conf_grade = 0.25, batch_size=1)
+            result_keypoints = make_prediction_batch(court_model, batch_frames[0], conf_grade = 0.25)
             kps_obj = result_keypoints[0].keypoints if isinstance(result_keypoints, list) else result_keypoints.keypoints
             if kps_obj is None or len(kps_obj.xy[0]) < 4:
                 continue
@@ -69,8 +68,8 @@ def extract(url_video):
             batch_idx.append(-2)
         
         print(f"Pasando batch a los modelos de deteccion\n")
-        result_players = make_track_batch(player_model, batch_frames, batch_size=BATCH_SIZE)
-        result_ball = make_prediction_batch(ball_model, batch_frames, conf_grade=0.40, batch_size=BATCH_SIZE)
+        result_players = make_track_batch(player_model, batch_frames)
+        result_ball = make_prediction_batch(ball_model, batch_frames,  conf_grade = 0.40)
 
         for i in range(len(batch_frames)):
 
@@ -111,7 +110,7 @@ def extract(url_video):
 
     os.makedirs(config.RAW_JSON_FOLDER_PATH, exist_ok=True)
     video_name = os.path.basename(url_video).split('.')[0]
-    output_path = os.path.join(config.RAW_JSON_FOLDER_PATH, f"{video_name}.json")
+    output_path = os.path.join(config.RAW_JSON_FOLDER_PATH, f"{video_name}_mt_b1.json")
     with open(output_path, 'w') as f:
         json.dump(detection, f, cls=config.NumpyEncoder, indent=2)
 
@@ -119,8 +118,3 @@ def extract(url_video):
     total = fin - inicio
     print(f"Tiempo -> {total:.6f} segundos")
     print(f"Extraccion finalizada! Raw Data guardada en {output_path}")
-    
-
-
-
-
