@@ -30,7 +30,8 @@ def extract(url_video):
     # ───────────────────────────────────────────────────────
 
     is_first_frame = True
-    while True:
+    video_ended = False
+    while not video_ended:
 
         batch_frames = []
         batch_idx = []
@@ -39,6 +40,7 @@ def extract(url_video):
             (frame_idx, frame) = queue.get()
 
             if frame_idx == -1 and frame is None:
+                video_ended = True
                 break
             
             batch_frames.append(frame)
@@ -59,14 +61,23 @@ def extract(url_video):
             keypoints_court.extract_rest_of_kpoints()
             is_first_frame = False
 
+        while len(batch_frames) > 0 and len(batch_frames) < BATCH_SIZE:
+            batch_frames.append(batch_frames[-1])
+            batch_idx.append(-2)
+        
+        print(f"Pasando batch a los modelos de deteccion\n")
         result_players = make_track_batch(player_model, batch_frames)
         result_ball = make_prediction_batch(ball_model, batch_frames,  conf_grade = 0.40)
 
         for i in range(len(batch_frames)):
+
+            frame_idx = batch_idx[i]
+            if frame_idx == -2:
+                continue
+
             res_players = result_players[i]
             res_ball = result_ball[i]
-            frame_idx = batch_idx[i]
-
+        
             boxes, ids, keypoints = [], [], None
             if res_players.boxes is not None and len(res_players.boxes) > 0 and res_players.boxes.id is not None:
                 boxes = res_players.boxes.xyxy.cpu().numpy() 
@@ -85,7 +96,6 @@ def extract(url_video):
                 ball_tracker.update(None, frame_idx)
         
     cap.release()   
-
     ball_history = ball_tracker.get_ball_history()
     players_history = player_tracker.get_players_history()
     court_information = keypoints_court.get_court_information()
@@ -102,7 +112,7 @@ def extract(url_video):
     with open(output_path, 'w') as f:
         json.dump(detection, f, cls=config.NumpyEncoder, indent=2)
 
-    print(f"Extraction finished! Saved raw data to {output_path}")
+    print(f"Extraccion finalizada! Raw Data guardada en {output_path}")
     
 
 

@@ -16,9 +16,11 @@ def close_window():
     cv2.destroyAllWindows()
 
 def video_reader(cap, queue):
+    print("Leyendo video\n")
     while cap.isOpened():
         ret, frame = cap.read()
         frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        print(f"FRAME_IDX ----> {frame_idx}")
         if not ret:
             queue.put((-1, None))
             break
