@@ -14,7 +14,7 @@ def extract(url_video):
     
     inicio = time.time()
     # ──────── Variables and initialization ────────────────────────────────────
-    BATCH_SIZE = 32
+    BATCH_SIZE = 16
     cap, _, _, _  = read_video(url_video)
 
     court_model = YOLO(config.KEYPOINTS_COURT_MODEL, task='pose')
@@ -54,6 +54,7 @@ def extract(url_video):
 
         if is_first_frame:
 
+            first_frame = batch_frames[0]
             result_keypoints = make_prediction_batch(court_model, batch_frames[0], conf_grade = 0.25, batch_size=1)
             kps_obj = result_keypoints[0].keypoints if isinstance(result_keypoints, list) else result_keypoints.keypoints
             if kps_obj is None or len(kps_obj.xy[0]) < 4:
@@ -87,7 +88,7 @@ def extract(url_video):
                 ids = res_players.boxes.id.cpu().numpy().astype(int)
                 keypoints = res_players.keypoints.data.cpu().numpy() if hasattr(res_players, 'keypoints') and res_players.keypoints is not None else None
 
-            player_tracker.update(ids, boxes, keypoints, frame_idx)
+            player_tracker.update(batch_frames[i], ids, boxes, keypoints, frame_idx)
         
             if hasattr(res_ball, 'boxes') and res_ball.boxes is not None:
                 ball_boxes = res_ball.boxes.xyxy.cpu().numpy()

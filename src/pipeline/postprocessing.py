@@ -4,6 +4,9 @@ import numpy as np
 import os
 import config
 from core import EventTracker, StrokeClassifier
+from utils import remove_static_players, filter_ball_outliers, interpolate_ball, remove_false_detections
+from utils import get_ground_contact_point, normalice_keypoints, apply_homography, calculate_players_centers, remove_static_players, reorder_yolo_ids
+
 
 def postprocessing(raw_json_path: str):
 
@@ -15,21 +18,26 @@ def postprocessing(raw_json_path: str):
     with open(raw_path, 'r') as f:
         data = json.load(f)
         
-    ball_history = data.get('ball', [])
-    players_history = data.get('players', {})
-    
-    if not ball_history:
+    if not data.get('ball'):
         print("No ball data found.")
         return None
+        
+    # 1. Fase de Limpieza
+    data = _clean_data(data)
     
-    players_history = filter_players(players_history)
-    players_history = calculate_players_centers(players_history)
-    ball_history = filter_ball_outliers(ball_history)
-    interpolated_ball_list = interpolate_ball(ball_history)
-    #Transformamos a dict para acceder a los datos de manera comoda en ambas fases
+    # 2. Fase de Extracción de Datos
+    data = _extract_features(data)
+    
+    """
+    # 3. Clasificación de Eventos
+    interpolated_ball_list = data['ball']
+    players_history = data['players']
+    
+    
     interpolated_ball_dict = {b['frame']: b for b in interpolated_ball_list}
     event_tracker = EventTracker()
     event_tracker.track(interpolated_ball_dict, players_history)
+    
     stroke_classifier = StrokeClassifier()
     events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball_dict)
     events = event_tracker.get_history()
@@ -37,8 +45,9 @@ def postprocessing(raw_json_path: str):
     # Asignar la mano de la pala dominante al diccionario general de cada jugador
     players_hands = stroke_classifier.get_players_racket_hands()
     for pid, hand in players_hands.items():
-        if pid in players_history:
-            players_history[pid]['racket_hand'] = hand
+        str_pid = str(pid)
+        if str_pid in players_history:
+            players_history[str_pid]['racket_hand'] = hand
             
     events_dict = {}
     if events:
@@ -46,7 +55,7 @@ def postprocessing(raw_json_path: str):
             frame_key = str(e.impact_frame)
             if frame_key not in events_dict:
                 events_dict[frame_key] = []
-                event_data = {
+            event_data = {
                 'impact_frame': e.impact_frame,
                 'player_id': e.player_id,
                 'type_of_shot': getattr(e, 'type_of_shot', None),
@@ -55,64 +64,78 @@ def postprocessing(raw_json_path: str):
                 'destiny_cord': e.destiny_cord
             }
             events_dict[frame_key].append(event_data)
-    # Guardamos en JSON la lista original para mantener la compatibilidad con el render
-    data['ball'] = interpolated_ball_list
-    data['players'] = players_history
+            
     data['events'] = events_dict
     os.makedirs(os.path.dirname(interp_path), exist_ok=True)
     with open(interp_path, 'w') as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=2,cls= config.NumpyEncoder)
         
     print(f"Interpolation finished! Saved cleaned data to {interp_path}")
     return interp_path
+    """
 
-def interpolate_ball(ball_df):
-    df_copy = ball_df.copy()
-    nan_size = group_nan(df_copy)
-    df_ball_interp = ball_df.interpolate(method='linear', limit_direction='both')
-    is_big = nan_size > 8
-
-    df_ball_interp.loc[is_big, ['x_min', 'y_min', 'x_max', 'y_max','center_x', 'center_y']] = None
-    return df_ball_interp.reset_index().to_dict(orient='records')
-
-def calculate_players_centers(dict_players):
-    for _, player_data in dict_players.items():
-        for record in player_data.values():
-            record['center_x'] = (record['x_min'] + record['x_max']) / 2
-            record['center_y'] = (record['y_min'] + record['y_max']) / 2
-    return dict_players
+def _clean_data(data):
+    ball_history = data.get('ball', [])
+    
+    if ball_history:
+        ball_history = filter_ball_outliers(ball_history)
+        data['ball'] = interpolate_ball(ball_history)
         
-def calculate_centers(data_ball):
-    df_ball = pd.DataFrame(data_ball).set_index('frame')
-    df_ball['center_x'] = (df_ball['x_min'] + df_ball['x_max']) / 2
-    df_ball['center_y'] = (df_ball['y_min'] + df_ball['y_max']) / 2
-    return df_ball
+    return data
 
-def filter_players(players_history):
-    player_lengths = {p_id: len(frames) for p_id, frames in players_history.items()}
-    top_4_ids = sorted(player_lengths, key=player_lengths.get, reverse=True)[:4]
-
-    filtered_players = {p_id: players_history[p_id] for p_id in top_4_ids}
-    return filtered_players
-
-def group_nan(ball_frame: pd.DataFrame):
-    nan_groups= ball_frame['x_min'].notna().cumsum()
-    solo_nans = nan_groups[ball_frame['x_min'].isna()]
-    len_consecutive_nan = solo_nans.groupby(solo_nans).size()
+def _extract_features(data):
+    players_history = data.get('players', {})
     
-    len_map = nan_groups.map(len_consecutive_nan).fillna(0)
-    return len_map
+    if not players_history:
+        return data
+        
+    players_history = calculate_players_centers(players_history)
 
-def filter_ball_outliers(ball_history, window_size=8, threshold_dist=50.0):
+    # Extraer la matriz de homografía (el usuario la guarda en la posición 1 de court_information)
+    court_info = data.get('court', [])
+    if len(court_info) > 1:
+        H = np.array(court_info[1], dtype=np.float32)
+    else:
+        H = None
+        
+    #Diccionario -> DataFrame(Solo contiene informacion de la data del jugador)
+    records = []
+    for pid, frames in players_history.items():
+        for f_id, f_data in frames.items():
+            records.append(f_data)
+            
+    players_df = pd.DataFrame(records)
     
-    df_ball = calculate_centers(ball_history)
-    df_copy = df_ball.copy()
+    #Funciones de extraccion
+    players_df = remove_static_players(players_df, 10.0)
+    players_df = remove_false_detections(players_df, 5)
+    players_df = get_ground_contact_point(players_df)
+    players_df = normalice_keypoints(players_df)
+    players_df = reorder_yolo_ids(players_df)
+    
+    """
+    if H is not None:
+        players_df = apply_homography(players_df, H, 'contact_x', 'contact_y')
+        
+    if 'ball' in data and data['ball'] and H is not None:
+        ball_df = pd.DataFrame(data['ball'])
+        ball_df = apply_homography(ball_df, H, 'center_x', 'center_y')
+        data['ball'] = ball_df.to_dict(orient='records')
+        
+    #Volver a meter en un dict
+    players_df = players_df.replace({np.nan: None})
+    players_history = {}
+    for player_id, p_df in players_df.groupby('player_id'):
+        str_pid = str(player_id)
+        record = p_df.to_dict(orient='records')
+        players_history[str_pid] = {str(int(row['frame'])): row for row in record}
+                
+    data['players'] = players_history
 
-    median_x = df_copy['center_x'].rolling(window=window_size, center=True, min_periods=1).median()
-    median_y = df_copy['center_y'].rolling(window=window_size, center=True, min_periods=1).median()
+    primer_frame = players_df['frame'].min()
 
-    deviation = np.sqrt(((median_x - df_copy['center_x'])**2) + ((median_y - df_copy['center_y'])**2))
-    atipic = deviation > threshold_dist
-    df_copy.loc[atipic, ['x_min', 'y_min', 'x_max', 'y_max','center_x', 'center_y']] = None
-
-    return df_copy
+    jugadores_primer_frame = players_df[players_df['frame'] == primer_frame]
+    print(jugadores_primer_frame)
+    print(jugadores_primer_frame.columns)
+    """
+    return data
