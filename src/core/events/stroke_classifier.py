@@ -121,18 +121,20 @@ class StrokeClassifier:
         return [score, 'service', tie_breaker]
 
     def check_players_position_serve(self, event, players_history, impact_frame):
-        # En padel profesional los jugadores son 1-2 (equipo 1) y 3-4 (equipo 2)
+        # En padel profesional los jugadores son 0-1 (equipo 1, arriba) y 2-3 (equipo 2, abajo)
         try:
-            server_id = int(event.player_id)
+            server_id = int(float(event.player_id))
         except (ValueError, TypeError):
             return False
 
-        if server_id in [1, 2]:
-            partner_id = 2 if server_id == 1 else 1
-            opponents_ids = [3, 4]
+        if server_id in [0, 1]:
+            partner_id = 1 if server_id == 0 else 0
+            opponents_ids = [2, 3]
+        elif server_id in [2, 3]:
+            partner_id = 3 if server_id == 2 else 2
+            opponents_ids = [0, 1]
         else:
-            partner_id = 4 if server_id == 3 else 3
-            opponents_ids = [1, 2]
+            return False
             
         partner_data = players_history.get(partner_id) or players_history.get(str(partner_id))
         opp1_data = players_history.get(opponents_ids[0]) or players_history.get(str(opponents_ids[0]))

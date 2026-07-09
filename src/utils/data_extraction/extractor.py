@@ -102,6 +102,7 @@ def normalice_keypoints(player_df: pd.DataFrame):
     return player_df
 
 def reorder_yolo_ids(players_df):
+    print("\n\n\n ----EMPEZANDO FASE DE REORDENACION DE IDS---- \n\n\n")
     master_info = _obtain_four_ids(players_df)
     first_bottom_footprint = master_info['bottom_footprint']
     role = master_info['master_role']
@@ -110,13 +111,21 @@ def reorder_yolo_ids(players_df):
     first_frame = players_df['frame'].min()
     new_ids = players_frame_min[players_frame_min > first_frame]
     groups_ids = new_ids.groupby(new_ids).groups
+    print(groups_ids)
     
     for cut_frame, ids in groups_ids.items():
-        players_cut = players_df[players_df['frame'] == cut_frame]
-        _reasing_ids(players_cut, first_bottom_footprint, role)
+        valid_frame = cut_frame
+        players_cut = players_df[players_df['frame'] == valid_frame]
+        
+        while len(players_cut) != 4 and valid_frame <= players_df['frame'].max():
+            valid_frame += 1
+            players_cut = players_df[players_df['frame'] == valid_frame]
+            
+        if len(players_cut) == 4:
+            _reasing_ids(players_cut, first_bottom_footprint, role)
 
-    players_df['player_id'].map(role).fillna(players_df['player_id'])
-    print(players_df['player_id'])
+    players_df['player_id'] = players_df['player_id'].map(role).fillna(players_df['player_id'])
+    return players_df
 
 def _obtain_four_ids(players_df: pd.DataFrame):
     first_frame = players_df['frame'].min()
@@ -144,8 +153,10 @@ def _reasing_ids(players_cut, first_bottom_footprint, master_role):
         position_in_court = ordered_ids.index(id)
 
         if pair_keep_in_bottom:
+            print("Misma huella\n")
             new_rol = position_in_court
         else:
+            print("Distinta huella\n")
             if position_in_court == 0:
                 new_rol = 3
             elif position_in_court == 1:
@@ -156,8 +167,6 @@ def _reasing_ids(players_cut, first_bottom_footprint, master_role):
                 new_rol = 0
 
         master_role[id] = new_rol
-
-
 
 def _order_four_players(four_players):
     top_pair = four_players.iloc[:2]
@@ -190,11 +199,15 @@ def _order_four_players(four_players):
 def _compare_footprint(master_footprint, foot_print):
     mh, ms, mv = master_footprint
     h, s, v = foot_print
+    print(master_footprint)
+    print(foot_print)
 
     dh = min(abs(mh - h), 180 - abs(mh-h))
     ds = abs(ms - s)
     dv = abs(mv - v)
 
     euclidean_distance = np.linalg.norm([dh, ds, dv])
+    print(euclidean_distance)
+
     return euclidean_distance < 50  
     

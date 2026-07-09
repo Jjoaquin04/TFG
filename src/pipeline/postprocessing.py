@@ -28,7 +28,6 @@ def postprocessing(raw_json_path: str):
     # 2. Fase de Extracción de Datos
     data = _extract_features(data)
     
-    """
     # 3. Clasificación de Eventos
     interpolated_ball_list = data['ball']
     players_history = data['players']
@@ -72,7 +71,7 @@ def postprocessing(raw_json_path: str):
         
     print(f"Interpolation finished! Saved cleaned data to {interp_path}")
     return interp_path
-    """
+    
 
 def _clean_data(data):
     ball_history = data.get('ball', [])
@@ -107,13 +106,13 @@ def _extract_features(data):
     players_df = pd.DataFrame(records)
     
     #Funciones de extraccion
-    players_df = remove_static_players(players_df, 10.0)
+    players_df = remove_static_players(players_df, 300.0)
     players_df = remove_false_detections(players_df, 5)
     players_df = get_ground_contact_point(players_df)
     players_df = normalice_keypoints(players_df)
     players_df = reorder_yolo_ids(players_df)
     
-    """
+    
     if H is not None:
         players_df = apply_homography(players_df, H, 'contact_x', 'contact_y')
         
@@ -135,7 +134,4 @@ def _extract_features(data):
     primer_frame = players_df['frame'].min()
 
     jugadores_primer_frame = players_df[players_df['frame'] == primer_frame]
-    print(jugadores_primer_frame)
-    print(jugadores_primer_frame.columns)
-    """
     return data

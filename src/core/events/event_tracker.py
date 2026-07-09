@@ -161,13 +161,13 @@ class EventTracker:
         #Comprobacion de que por angulo y posicion de los jugadores en golpeos cruzados un jugador no puede hacer un evento si justo el anterior es su compañero
         if self.history:
             last_event = self.history[-1]
-            last_hitter = int(last_event.player_id)
-            current_hitter = int(best['player_id'])
+            last_hitter = int(float(last_event.player_id))
+            current_hitter = int(float(best['player_id']))
             frames_since_last = best['frame'] - last_event.impact_frame
             
-            # Comparamos si son del mismo equipo
-            is_partner = (last_hitter in [1, 2] and current_hitter in [1, 2]) or \
-                         (last_hitter in [3, 4] and current_hitter in [3, 4])
+            # Comparamos si son del mismo equipo (Nuestros roles son 0 y 1 para arriba, 2 y 3 para abajo)
+            is_partner = (last_hitter in [0, 1] and current_hitter in [0, 1]) or \
+                         (last_hitter in [2, 3] and current_hitter in [2, 3])
             
             #Si es el compañero o él mismo, y ha pasado "poco tiempo"
             if is_partner and frames_since_last < 40:
