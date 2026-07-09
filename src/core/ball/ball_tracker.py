@@ -8,11 +8,11 @@ class BallTracker:
     def __init__(self):
         self.ball = Ball()
 
-    def update(self, ball_bbx, frame_idx):
-        if ball_bbx is None:
-            self.ball.update(frame_idx,None)
+    def update(self, ball_detections, frame_idx):
+        if len(ball_detections) == 0:
+            self.ball.update(frame_idx, [])
         else:
-            self.ball.update(frame_idx, ball_bbx)
+            self.ball.update(frame_idx, ball_detections)
     
     def get_ball_history(self):
         return self.ball.history

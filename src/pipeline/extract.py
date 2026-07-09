@@ -93,11 +93,11 @@ def extract(url_video):
             if hasattr(res_ball, 'boxes') and res_ball.boxes is not None:
                 ball_boxes = res_ball.boxes.xyxy.cpu().numpy()
                 if len(ball_boxes) > 0:
-                    ball_tracker.update(ball_boxes[0], frame_idx) 
+                    ball_tracker.update(ball_boxes, frame_idx) 
                 else:
-                    ball_tracker.update(None, frame_idx)
+                    ball_tracker.update([], frame_idx)
             else:
-                ball_tracker.update(None, frame_idx)
+                ball_tracker.update([], frame_idx)
         
     cap.release()   
     ball_history = ball_tracker.get_ball_history()
