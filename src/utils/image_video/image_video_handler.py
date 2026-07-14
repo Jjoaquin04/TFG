@@ -25,69 +25,46 @@ def video_reader(cap, queue):
             queue.put((-1, None))
             break
 
-        queue.put((frame_idx, frame))        
+        queue.put((frame_idx, frame)) 
 
-def get_roi_clamped(image, x_center, y_center, half_w, half_h):
-    # Devuelve la ROI y sus coordenadas de origen (para mapear de vuelta).
-    x0 = max(int(x_center) - half_w, 0)
-    x1 = min(int(x_center) + half_w, image.shape[1])
-    y0 = max(int(y_center) - half_h, 0)
-    y1 = min(int(y_center) + half_h, image.shape[0])
-    return image[y0:y1, x0:x1].copy(), x0, y0 # ROI + offsets para coordenadas globales
+def obtain_court_lines(img, best_contour):
+    clean_mask = np.zeros(img.shape[:2],dtype=np.uint8) 
+    clean_mask = cv2.drawContours(clean_mask, [best_contour], -1, 255, -1)
+    gaussian_mask = cv2.GaussianBlur(clean_mask, (23,23), 0)
+    canny_img = cv2.Canny(gaussian_mask, 20, 70)
+        
+    lines = cv2.HoughLines(canny_img, 1, np.pi / 180, threshold=100)
+    best_left = None
+    best_right = None
+    best_top = None
+    best_bottom = None
+    
+    if lines is not None:
+        # Calculamos el centro de masa a traves del momentum del contorno
+        M = cv2.moments(best_contour)
+        cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else img.shape[0] // 2
+        
+        for line in lines:
+            rho, theta = line[0]
+            angle_deg = np.degrees(theta)
+            
+            #Clasificación geométrica
+            if 10 < angle_deg < 80:
+                # Pared Izquierda
+                if best_left is None: best_left = (rho, theta)
+            elif 100 < angle_deg < 170:
+                #Pared Derecha
+                if best_right is None: best_right = (rho, theta)
+            elif 80 <= angle_deg <= 100:
+                #Fondo o Red/Inferior
+                #Obtenemos el punto de corte de la recta infinita con el borde izq de la pantalla
+                y_intercept = rho / np.sin(theta)
+                if y_intercept < cy:
+                    if best_top is None: best_top = (rho, theta)
+                else:
+                    if best_bottom is None: best_bottom = (rho, theta)
 
-def preprocess_roi(roi, mask_color=True):
-    # Preprocesa la ROI: máscara opcional + Canny.
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-
-    if mask_color:
-        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-        # Blanco puro de líneas de pista
-        mask_w = cv2.inRange(hsv, np.array([0,   0, 160]),
-                                  np.array([180, 50, 255]))
-        # Líneas que pueden verse grises por perspectiva/luz
-        mask_g = cv2.inRange(hsv, np.array([0,   0, 120]),
-                                  np.array([180, 40, 200]))
-        mask = cv2.bitwise_or(mask_w, mask_g)
-        mask = cv2.dilate(mask, np.ones((3,3), np.uint8), iterations=1)
-        gray = cv2.bitwise_and(gray, gray, mask=mask)
-
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4))
-    gray  = clahe.apply(gray)
-    blur  = cv2.GaussianBlur(gray, (5, 5), 1)
-    edges = cv2.Canny(blur, 20, 80, apertureSize=3)
-    return edges
-
-def get_segments(edges, min_len=config.MIN_LINE_LEN,
-                 max_gap=config.MAX_LINE_GAP, thresh=config.HOUGH_THRESH):
-    segs = cv2.HoughLinesP(edges, 1, np.pi/180,
-                           thresh, minLineLength=min_len,
-                           maxLineGap=max_gap)
-    return segs if segs is not None else np.array([]).reshape(0,1,4)
-
-def classify_segments(segs, target='H', tol=config.ANGLE_TOL_DEG):
-    # Filtra segmentos por orientación (H o V).
-    out = []
-    for s in segs:
-        xa, ya, xb, yb = s[0]
-        angle = np.degrees(np.arctan2(abs(yb - ya), abs(xb - xa)))
-        if target == 'H' and angle < tol:
-            out.append(s[0])
-        elif target == 'V' and angle > (90 - tol):
-            out.append(s[0])
-    return out
-
-def fit_line_svd(segs_list):
-    # Ajuste SVD sobre todos los puntos de los segmentos → (a, b, c): ax+by=c.
-    pts = []
-    for xa, ya, xb, yb in segs_list:
-        pts.extend([(xa, ya), (xb, yb)])
-    pts = np.array(pts, dtype=np.float64)
-    cx_f, cy_f = pts.mean(axis=0)
-    _, _, Vt = np.linalg.svd(pts - [cx_f, cy_f])
-    dx, dy = Vt[0]
-    a, b = -dy, dx
-    c = a * cx_f + b * cy_f
-    return a, b, c
+    return [best_left, best_right, best_top, best_bottom]
 
 def draw_edges_court_connections(frame, court_points, is_mini_court=False):
     for edge in config.COURT_EDGES:

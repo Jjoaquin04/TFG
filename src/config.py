@@ -25,36 +25,32 @@ MAX_LINE_GAP  = 15
 HOUGH_THRESH  = 25
 ANGLE_TOL_DEG = 25
 
-real_points_model = np.array([
-    [-5.0, 6.95],     # 1: Cristal Izquierdo Superior
-    [0.0, 6.95],      # 0: T Superior    
-    [5.0, 6.95],      # 2: Cristal Derecho Superior
-    [0.0, 0.0],       # 3: Net
-    [-5.0, -6.95],    # 4: Cristal Izquierdo Inferior
-    [0.0, -6.95],     # 5: T Inferior      
-    [5.0, -6.95]      # 6: Cristal Derecho Inferior
+real_points= np.array([
+    [-5.0, 10.0],   # Esquina Superior Izquierda
+    [5.0, 10.0],    # Esquina Superior Derecha
+    [-5.0, -10.0],  # Esquina Inferior Izquierda
+    [5.0, -10.0],   # Esquina Inferior Derecha
+    [0.0, 6.95],    # T Superior    
+    [0.0, -6.95],   # T Inferior      
 ], dtype=np.float32)
 
-rest_real_points_model = np.array([
-        # --- 1. LAS 4 ESQUINAS DEL FONDO ---
-        [-5.1, 10.0],   # Esquina Superior Izquierda
-        [5.1, 10.0],    # Esquina Superior Derecha
-        [-4.9, -10.0],  # Esquina Inferior Izquierda
-        [4.9, -10.0],   # Esquina Inferior Derecha
-        
-        # --- 2. LA RED ---
-        [-5.0, 0.0],    # Poste de red Izquierdo
-        [5.0, 0.0],     # Poste de red Derecho
-        
-        # --- 4. TRANSICIÓN REJA / CRISTAL ---
-        [-5.0, 6.0],    # Empieza reja Superior Izquierda
-        [5.0, 6.0],     # Empieza reja Superior Derecha
-        [-5.0, -6.0],   # Empieza reja Inferior Izquierda
-        [5.0, -6.0]     # Empieza reja Inferior Derecha
+rest_real_points = np.array([
+    [-5.0, 6.95],   # Cristal Izquierdo Superior
+    [5.0, 6.95],    # Cristal Derecho Superior
+    [-5.0, -6.95],  # Cristal Izquierdo Inferior
+    [5.0, -6.95],    # Cristal Derecho Inferior
+    [0.0, 0.0],     # Net
+    [-5.0, 0.0],    # Poste de red Izquierdo
+    [5.0, 0.0],     # Poste de red Derecho
+    # --- 4. TRANSICIÓN REJA / CRISTAL ---
+    [-5.0, 6.0],    # Empieza reja Superior Izquierda
+    [5.0, 6.0],     # Empieza reja Superior Derecha
+    [-5.0, -6.0],   # Empieza reja Inferior Izquierda
+    [5.0, -6.0]     # Empieza reja Inferior Derecha
 
 ], dtype=np.float32).reshape(-1, 1, 2)
 
-points_court = np.concatenate((real_points_model.reshape(-1, 1, 2), rest_real_points_model), axis=0)
+points_court = np.concatenate((real_points.reshape(-1, 1, 2), rest_real_points), axis=0)
 
 COURT_EDGES = [
     # Formato: (Indice1, Indice2, Color_Real_Court (BGR), Color_Mini_Court (BGR))
@@ -83,3 +79,10 @@ class NumpyEncoder(json.JSONEncoder):
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
             return super(NumpyEncoder, self).default(obj)
+
+types_of_mask = {
+    "mask1" : [[127, 99, 97], [133, 180, 255]], # Harcodeado a traves del metodo tune_mask_live.py 
+    "mask2" : [[93, 153, 172], [123, 253, 255]], 
+    "mask3" : [[98, 158, 205], [128, 255, 255]], 
+    "mask4" : [[97, 172, 205],[127, 255, 255]]
+}
