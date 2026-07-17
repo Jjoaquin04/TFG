@@ -8,7 +8,7 @@ from queue import Queue
 from threading import Thread
 from ultralytics import YOLO
 from core import BallTracker ,KeypointsCourt, PlayerTracker
-from utils import read_video, make_prediction_batch, make_track_batch, video_reader
+from utils import read_video, make_prediction_batch, make_track_batch, video_reader, background_substraction
 
 def extract(url_video):
     
@@ -26,9 +26,12 @@ def extract(url_video):
 
     keypoints_court = KeypointsCourt()
 
-    queue = Queue(maxsize=128)
-    producer_thread = Thread(target=video_reader, args=(cap, queue))
-    producer_thread.start()
+    queue_frames = Queue(maxsize=150)
+    queue_processed = Queue(maxsize=150)
+    frames_thread = Thread(target=video_reader, args=(cap, queue_frames))
+    bg_thread = Thread(target=background_substraction, args=(queue_frames, queue_processed))
+    frames_thread.start()
+    bg_thread.start()
     # ───────────────────────────────────────────────────────
 
     is_first_frame = True
@@ -41,7 +44,7 @@ def extract(url_video):
 
         while len(batch_frames) < BATCH_SIZE:
 
-            (frame_idx, frame, fgmask) = queue.get()
+            (frame_idx, frame, fgmask) = queue_processed.get()
 
             if frame_idx == -1 and frame is None:
                 video_ended = True
