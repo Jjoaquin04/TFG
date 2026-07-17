@@ -17,15 +17,16 @@ def close_window():
 
 def video_reader(cap, queue):
     print("Leyendo video\n")
+    bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=16, detectShadows=False)
     while cap.isOpened():
         ret, frame = cap.read()
         frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        print(f"FRAME_IDX ----> {frame_idx}")
         if not ret:
-            queue.put((-1, None))
+            queue.put((-1, None, None))
             break
-
-        queue.put((frame_idx, frame)) 
+            
+        fgmask = bg_subtractor.apply(frame)
+        queue.put((frame_idx, frame, fgmask)) 
 
 def obtain_court_lines(img, best_contour):
     clean_mask = np.zeros(img.shape[:2],dtype=np.uint8) 

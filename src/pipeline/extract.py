@@ -37,10 +37,11 @@ def extract(url_video):
 
         batch_frames = []
         batch_idx = []
+        batch_fgmasks = []
 
         while len(batch_frames) < BATCH_SIZE:
 
-            (frame_idx, frame) = queue.get()
+            (frame_idx, frame, fgmask) = queue.get()
 
             if frame_idx == -1 and frame is None:
                 video_ended = True
@@ -48,6 +49,7 @@ def extract(url_video):
             
             batch_frames.append(frame)
             batch_idx.append(frame_idx)
+            batch_fgmasks.append(fgmask)
 
         if len(batch_frames) == 0:
                 break    
@@ -68,10 +70,11 @@ def extract(url_video):
         while len(batch_frames) > 0 and len(batch_frames) < BATCH_SIZE:
             batch_frames.append(batch_frames[-1])
             batch_idx.append(-2)
+            batch_fgmasks.append(batch_fgmasks[-1])
         
         print(f"Pasando batch a los modelos de deteccion\n")
         result_players = make_track_batch(player_model, batch_frames, batch_size=BATCH_SIZE)
-        result_ball = make_prediction_batch(ball_model, batch_frames, conf_grade=0.40, batch_size=BATCH_SIZE)
+        result_ball = make_prediction_batch(ball_model, batch_frames, conf_grade=0.03, batch_size=BATCH_SIZE)
 
         for i in range(len(batch_frames)):
 
@@ -92,8 +95,28 @@ def extract(url_video):
         
             if hasattr(res_ball, 'boxes') and res_ball.boxes is not None:
                 ball_boxes = res_ball.boxes.xyxy.cpu().numpy()
-                if len(ball_boxes) > 0:
-                    ball_tracker.update(ball_boxes, frame_idx) 
+                valid_ball_boxes = []
+                
+                # Filtrar resultados con la mascara
+                current_fgmask = batch_fgmasks[i]
+                for box in ball_boxes:
+                    x_min, y_min, x_max, y_max = map(int, box[:4])
+                    # Limitar coordenadas al tamaño de la imagen
+                    y_min = max(0, y_min)
+                    y_max = min(current_fgmask.shape[0], y_max)
+                    x_min = max(0, x_min)
+                    x_max = min(current_fgmask.shape[1], x_max)
+                    
+                    window = current_fgmask[y_min:y_max, x_min:x_max]
+                    if window.size > 0:
+                        window_clean = cv2.medianBlur(window, 5) 
+                        white_quantity = cv2.countNonZero(window_clean)
+                        ratio = white_quantity / window.size
+                        if ratio > 0.1:
+                            valid_ball_boxes.append(box)
+                
+                if len(valid_ball_boxes) > 0:
+                    ball_tracker.update(np.array(valid_ball_boxes), frame_idx) 
                 else:
                     ball_tracker.update([], frame_idx)
             else:
@@ -108,7 +131,7 @@ def extract(url_video):
         'ball': ball_history,
         'players': players_history,
         'court': court_information
-    }
+    }   
 
     os.makedirs(config.RAW_JSON_FOLDER_PATH, exist_ok=True)
     video_name = os.path.basename(url_video).split('.')[0]
