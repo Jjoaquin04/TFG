@@ -16,7 +16,7 @@ class Ball:
                 'x_max': float(bbx[2]),
                 'y_max': float(bbx[3])
             })
-            
+    
         self.history.append({
             'frame': frame_idx,
             'detections': dets

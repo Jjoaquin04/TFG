@@ -15,6 +15,7 @@ class MiniCourt():
     
         self.set_background_court(frame_width)
         self.set_mini_court()
+        self.rectangle_white = np.ones((self.rectangle_height, self.rectangle_width, 3), dtype=np.uint8) * 255
         self.mini_homography = self._build_mini_homography()
         
         # Invertimos la homografía para mapear de coordanadas reales a coordenadas en pixeles del mini court
@@ -39,10 +40,10 @@ class MiniCourt():
 
 
         dst_points = np.array([
-            [config.points_court[7][0][0], config.points_court[7][0][1]], # Esquina Superior Izquierda
-            [config.points_court[8][0][0], config.points_court[8][0][1]], # Esquina Superior Derecha
-            [config.points_court[9][0][0], config.points_court[9][0][1]], # Esquina Inferior Izquierda
-            [config.points_court[10][0][0], config.points_court[10][0][1]]  # Esquina Inferior Derecha
+            [config.points_court[0][0][0], config.points_court[0][0][1]], # Esquina Superior Izquierda
+            [config.points_court[1][0][0], config.points_court[1][0][1]], # Esquina Superior Derecha
+            [config.points_court[2][0][0], config.points_court[2][0][1]], # Esquina Inferior Izquierda
+            [config.points_court[3][0][0], config.points_court[3][0][1]]  # Esquina Inferior Derecha
         ], dtype=np.float32)
 
         H, _ = cv2.findHomography(src_points, dst_points, cv2.RANSAC)
@@ -59,8 +60,7 @@ class MiniCourt():
     def draw_court(self, frame, player_positions, trajectory_line):
         #1. Dibujar el fondo del minimapa (margen exterior)
         rectangle = frame[self.start_y:self.end_y, self.start_x:self.end_x]
-        rectangle_white = np.ones(rectangle.shape, dtype=np.uint8) * 255
-        res = cv2.addWeighted(rectangle, 0.5, rectangle_white, 0.5, 0) 
+        res = cv2.addWeighted(rectangle, 0.5, self.rectangle_white, 0.5, 0) 
         frame[self.start_y:self.end_y, self.start_x:self.end_x] = res
 
         for position in player_positions:

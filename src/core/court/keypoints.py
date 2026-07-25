@@ -41,6 +41,29 @@ class KeypointsCourt:
             refined_kps[idx, 0] = x1 + cx
             refined_kps[idx, 1] = y1 + cy
 
+        # --- ALINEACIÓN VERTICAL DE LA LÍNEA CENTRAL ---
+        # Índices de YOLO: 1 (Top T), 3 (Net Center), 5 (Bottom T)
+        x_1 = refined_kps[1, 0]
+        x_3 = refined_kps[3, 0]
+        x_5 = refined_kps[5, 0]
+        
+        d13 = abs(x_1 - x_3)
+        d15 = abs(x_1 - x_5)
+        d35 = abs(x_3 - x_5)
+        
+        if d13 <= d15 and d13 <= d35:
+            avg_x = (x_1 + x_3) / 2
+        elif d15 <= d13 and d15 <= d35:
+            avg_x = (x_1 + x_5) / 2
+        else:
+            avg_x = (x_3 + x_5) / 2
+            
+        refined_kps[1, 0] = avg_x
+        refined_kps[3, 0] = avg_x
+        refined_kps[5, 0] = avg_x
+
+        #Añadir después de alinear
+        for idx in index_to_refine:
             self.keypoints = np.vstack([self.keypoints, np.array(refined_kps[idx]).reshape(-1,2)])
 
         #Extraer el resto de los puntos

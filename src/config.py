@@ -55,20 +55,20 @@ points_court = np.concatenate((real_points.reshape(-1, 1, 2), rest_real_points),
 COURT_EDGES = [
     # Formato: (Indice1, Indice2, Color_Real_Court (BGR), Color_Mini_Court (BGR))
     # 1. Contorno de la pista (Esquinas)
-    (7, 8, (0, 255, 0), (54, 69, 79)),   # Fondo Superior: Verde Neón en Real, Gris Fuerte en Mini
-    (9, 10, (0, 255, 0), (54, 69, 79)),  # Fondo Inferior
-    (7, 9, (0, 255, 0), (54, 69, 79)),   # Lateral Izquierdo
-    (8, 10, (0, 255, 0), (54, 69, 79)),  # Lateral Derecho
+    (0, 1, (0, 255, 0), (54, 69, 79)),   # Fondo Superior: Esquina Sup Izq a Esquina Sup Der
+    (2, 3, (0, 255, 0), (54, 69, 79)),   # Fondo Inferior: Esquina Inf Izq a Esquina Inf Der
+    (0, 2, (0, 255, 0), (54, 69, 79)),   # Lateral Izquierdo: Esq Sup Izq a Esq Inf Izq
+    (1, 3, (0, 255, 0), (54, 69, 79)),   # Lateral Derecho: Esq Sup Der a Esq Inf Der
     
     # 2. Líneas de Servicio (Intersecciones de Cristal/T)
-    (0, 2, (0, 255, 0), (54, 69, 79)),   # Línea de servicio Superior (pasa por T Sup)
-    (4, 6, (0, 255, 0), (54, 69, 79)),   # Línea de servicio Inferior (pasa por T Inf)
+    (6, 7, (0, 255, 0), (54, 69, 79)),   # Línea de servicio Superior (Cristal Izq Sup a Cristal Der Sup)
+    (8, 9, (0, 255, 0), (54, 69, 79)),   # Línea de servicio Inferior (Cristal Izq Inf a Cristal Der Inf)
     
     # 3. Línea Central de Servicio (une las dos T)
-    (1, 5, (0, 255, 0), (54, 69, 79)),   # De T Superior a T Inferior
+    (4, 5, (0, 255, 0), (54, 69, 79)),   # De T Superior a T Inferior
     
     # 4. La Red
-    (11, 12, (0, 0, 255), (80, 80, 220)),  # Poste Izquierdo a Poste Derecho: Rojo vibrante Real, Rojo suave en Mini
+    (11, 12, (0, 0, 255), (80, 80, 220)),  # Poste Izquierdo a Poste Derecho
 ]
 class NumpyEncoder(json.JSONEncoder):
         def default(self, obj):

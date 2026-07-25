@@ -27,17 +27,6 @@ def video_reader(cap, queue):
         queue.put((frame_idx, frame))
         frame_idx += 1
 
-def background_substraction(queue_frames,queue_processed):
-    bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=16, detectShadows=False)
-    while True:
-        frame_idx, frame = queue_frames.get()
-        if frame_idx == -1:
-            queue_processed.put((-1,None,None))
-            break
-
-        fgmask = bg_subtractor.apply(frame)
-        queue_processed.put((frame_idx, frame, fgmask))
-
 def obtain_court_lines(img, best_contour):
     clean_mask = np.zeros(img.shape[:2],dtype=np.uint8) 
     clean_mask = cv2.drawContours(clean_mask, [best_contour], -1, 255, -1)
@@ -88,8 +77,9 @@ def draw_edges_court_connections(frame, court_points, is_mini_court=False):
                 # No pintar la edge de la red en court real
                 continue
                 
+            thickness = 2 if is_mini_court else 5
             cv2.line(frame, (int(round(pt1[0])), int(round(pt1[1]))), 
-                            (int(round(pt2[0])), int(round(pt2[1]))), color, 2)
+                            (int(round(pt2[0])), int(round(pt2[1]))), color, thickness)
     return frame
 
 def draw_bounding_boxes(frame, bbx, ids=None):

@@ -9,7 +9,7 @@ if __name__ == "__main__":
     group = parser.add_mutually_exclusive_group(required=True)
 
     group.add_argument('--extract', type=str, metavar='VIDEO_URL', help='Run extract mode with the provided video URL or path')
-    group.add_argument('--postprocessing', type=str, metavar='JSON_RAW', help='Run postprocessing mode from a raw json')
+    group.add_argument('--postprocessing', type=str, nargs=2, metavar=('JSON_RAW', 'VIDEO_URL'), help='Run postprocessing mode from a raw json and video')
     group.add_argument('--render', type=str, nargs=2,  metavar=('VIDEO_URL', 'JSON_RAW'), help='Run render mode with the provided video URL or path')
 
     args = parser.parse_args()
@@ -21,10 +21,13 @@ if __name__ == "__main__":
         extract(args.extract)
 
     elif args.postprocessing:
-        if not os.path.exists(args.postprocessing):
-            print(f"Error: The json file {args.postprocessing} does not exist.")
+        if not os.path.exists(args.postprocessing[0]):
+            print(f"Error: The json file {args.postprocessing[0]} does not exist.")
             exit(-1)
-        postprocessing(args.postprocessing)
+        if not os.path.exists(args.postprocessing[1]):
+            print(f"Error: The video file {args.postprocessing[1]} does not exist.")
+            exit(-1)
+        postprocessing(args.postprocessing[0], args.postprocessing[1])
 
     elif args.render:
         if not os.path.exists(args.render[0]) or not os.path.exists(args.render[1]):
