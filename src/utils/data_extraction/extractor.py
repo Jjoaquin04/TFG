@@ -102,7 +102,7 @@ def normalice_keypoints(player_df: pd.DataFrame):
     return player_df
 
 def reorder_yolo_ids(players_df):
-    print("\n\n\n ----EMPEZANDO FASE DE REORDENACION DE IDS---- \n\n\n")
+    print("1. EMPEZANDO FASE DE REORDENACION DE IDS...\n")
     master_info = _obtain_four_ids(players_df)
     first_bottom_footprint = master_info['bottom_footprint']
     role = master_info['master_role']
@@ -111,12 +111,15 @@ def reorder_yolo_ids(players_df):
     first_frame = players_df['frame'].min()
     new_ids = players_frame_min[players_frame_min > first_frame]
     groups_ids = new_ids.groupby(new_ids).groups
-    print(groups_ids)
     
+    frames_cortes = []
     for cut_frame, ids in groups_ids.items():
         valid_frame = cut_frame
         players_cut = players_df[players_df['frame'] == valid_frame]
         
+        #Si en el momento exacto del nuevo ID están los 4 jugadores, lo consideramos un corte limpio
+        if len(players_cut) == 4:
+            frames_cortes.append(cut_frame)
         while len(players_cut) != 4 and valid_frame <= players_df['frame'].max():
             valid_frame += 1
             players_cut = players_df[players_df['frame'] == valid_frame]
@@ -125,7 +128,7 @@ def reorder_yolo_ids(players_df):
             _reasing_ids(players_cut, first_bottom_footprint, role)
 
     players_df['player_id'] = players_df['player_id'].map(role).fillna(players_df['player_id'])
-    return players_df
+    return players_df, frames_cortes
 
 def _obtain_four_ids(players_df: pd.DataFrame):
     first_frame = players_df['frame'].min()
@@ -148,24 +151,30 @@ def _reasing_ids(players_cut, first_bottom_footprint, master_role):
     pair_keep_in_bottom = _compare_footprint(first_bottom_footprint, bottom_footprint)
 
     new_ids = [id for id in ordered_ids if id not in master_role]
-
+    
+    # Encontrar qué roles ya están ocupados por los IDs que ya conocemos en este frame
+    taken_roles = [master_role[id] for id in ordered_ids if id in master_role]
+    missing_roles = [r for r in [0, 1, 2, 3] if r not in taken_roles]
+    
     for id in new_ids:
         position_in_court = ordered_ids.index(id)
 
         if pair_keep_in_bottom:
-            print("Misma huella\n")
-            new_rol = position_in_court
+            ideal_rol = position_in_court
         else:
-            print("Distinta huella\n")
-            if position_in_court == 0:
-                new_rol = 3
-            elif position_in_court == 1:
-                new_rol = 2
-            elif position_in_court == 2:
-                new_rol = 1
-            else:
-                new_rol = 0
-
+            if position_in_court == 0: ideal_rol = 3
+            elif position_in_court == 1: ideal_rol = 2
+            elif position_in_court == 2: ideal_rol = 1
+            else: ideal_rol = 0
+            
+        if ideal_rol in missing_roles:
+            new_rol = ideal_rol
+        else:
+            new_rol = missing_roles[0] if missing_roles else ideal_rol
+            
+        if new_rol in missing_roles:
+            missing_roles.remove(new_rol)
+            
         master_role[id] = new_rol
 
 def _order_four_players(four_players):
@@ -199,15 +208,11 @@ def _order_four_players(four_players):
 def _compare_footprint(master_footprint, foot_print):
     mh, ms, mv = master_footprint
     h, s, v = foot_print
-    print(master_footprint)
-    print(foot_print)
-
     dh = min(abs(mh - h), 180 - abs(mh-h))
     ds = abs(ms - s)
     dv = abs(mv - v)
 
     euclidean_distance = np.linalg.norm([dh, ds, dv])
-    print(euclidean_distance)
 
-    return euclidean_distance < 50  
+    return euclidean_distance < 60  
     

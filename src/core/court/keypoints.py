@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 import config
-from utils import obtain_court_lines 
+from utils import obtain_court_lines, draw_edges_court_connections 
 
 class KeypointsCourt:
     def __init__(self):
@@ -12,63 +12,6 @@ class KeypointsCourt:
         self.extract_homography()
         rest_points = cv2.perspectiveTransform(config.rest_real_points, self.inverse_H)
         self.keypoints = np.vstack([self.keypoints, rest_points.reshape(-1, 2)])
-    
-    def refine_points(self, img, kps):
-        self.get_delimited_court(img)
-        index_to_refine = [1, 5]
-        best_mask_img_inverted = cv2.bitwise_not(self.best_mask_img)
-        
-        refined_kps = kps.copy()
-        for idx in index_to_refine:
-            pt = refined_kps[idx].flatten()
-            x_center, y_center = int(pt[0]), int(pt[1])
-            
-            window = 40
-            y1 = max(0, y_center - window)
-            y2 = min(img.shape[0], y_center + window)
-            x1 = max(0, x_center - window)
-            x2 = min(img.shape[1], x_center + window)
-            
-            mask_window = best_mask_img_inverted[y1:y2, x1:x2].copy()
-            if mask_window.size == 0: continue
-
-            kernel = np.ones((7,7), np.uint8)
-            mask_window = cv2.morphologyEx(mask_window, cv2.MORPH_OPEN, kernel)
-
-            dst = cv2.cornerHarris(np.float32(mask_window), blockSize=7, ksize=5, k=0.04)
-            _, max_val, _, max_loc = cv2.minMaxLoc(dst)
-            cx, cy = max_loc
-            refined_kps[idx, 0] = x1 + cx
-            refined_kps[idx, 1] = y1 + cy
-
-        # --- ALINEACIÓN VERTICAL DE LA LÍNEA CENTRAL ---
-        # Índices de YOLO: 1 (Top T), 3 (Net Center), 5 (Bottom T)
-        x_1 = refined_kps[1, 0]
-        x_3 = refined_kps[3, 0]
-        x_5 = refined_kps[5, 0]
-        
-        d13 = abs(x_1 - x_3)
-        d15 = abs(x_1 - x_5)
-        d35 = abs(x_3 - x_5)
-        
-        if d13 <= d15 and d13 <= d35:
-            avg_x = (x_1 + x_3) / 2
-        elif d15 <= d13 and d15 <= d35:
-            avg_x = (x_1 + x_5) / 2
-        else:
-            avg_x = (x_3 + x_5) / 2
-            
-        refined_kps[1, 0] = avg_x
-        refined_kps[3, 0] = avg_x
-        refined_kps[5, 0] = avg_x
-
-        #Añadir después de alinear
-        for idx in index_to_refine:
-            self.keypoints = np.vstack([self.keypoints, np.array(refined_kps[idx]).reshape(-1,2)])
-
-        #Extraer el resto de los puntos
-        self.extract_rest_of_kpoints()
-
 
     def get_delimited_court(self, img):
         self.best_mask_img = None
@@ -112,6 +55,17 @@ class KeypointsCourt:
         bl = self._get_intersection(court_lines[0], court_lines[3])
         br = self._get_intersection(court_lines[1], court_lines[3])
         
+        # --- ALINEACIÓN HORIZONTAL DE LAS ESQUINAS DE LA MOQUETA ---
+        if tl is not None and tr is not None:
+            best_y_top = min(tl[1], tr[1])
+            tl = (tl[0], best_y_top)
+            tr = (tr[0], best_y_top)
+            
+        if bl is not None and br is not None:
+            best_y_bottom = max(bl[1], br[1])
+            bl = (bl[0], best_y_bottom)
+            br = (br[0], best_y_bottom)
+        
         self.keypoints = np.vstack([self.keypoints, np.array([tl, tr, bl, br]).reshape(-1, 2)])
 
     def _get_intersection(self, l1, l2):
@@ -128,8 +82,47 @@ class KeypointsCourt:
             return None       
 
     def extract_homography(self):
-        self.H, _ = cv2.findHomography(self.keypoints, config.real_points, cv2.RANSAC)
+        src_pts = self.keypoints[:4].copy()
+        dst_pts = config.real_points[:4].copy().reshape(-1, 2)
+            
+        self.H, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
         self.inverse_H = np.linalg.inv(self.H)
 
     def get_court_information(self):
         return [self.keypoints, self.H]
+
+    def adjust_points_mouse_callback(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            dists = np.linalg.norm(self.keypoints - np.array([x, y]), axis=1)
+            if np.min(dists) < 50:
+                self.dragging_point_idx = np.argmin(dists)
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if getattr(self, 'dragging_point_idx', -1) != -1:
+                self.keypoints[self.dragging_point_idx] = [x, y]
+        elif event == cv2.EVENT_LBUTTONUP:
+            self.dragging_point_idx = -1
+
+    def interactive_adjustment(self, frame):
+        self.dragging_point_idx = -1
+        window_name = 'Ajuste de Pista (Arrastra los puntos, ENTER para continuar)'
+        cv2.namedWindow(window_name, cv2.WINDOW_GUI_NORMAL)
+        cv2.setMouseCallback(window_name, self.adjust_points_mouse_callback)
+        
+        while True:
+            display_frame = frame.copy()
+            draw_edges_court_connections(display_frame, self.keypoints.reshape(-1, 1, 2))
+            for i, pt in enumerate(self.keypoints):
+                cv2.circle(display_frame, (int(pt[0]), int(pt[1])), 5, (0, 0, 255), -1)
+                cv2.putText(display_frame, str(i), (int(pt[0])+5, int(pt[1])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
+            cv2.imshow(window_name, display_frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == 13:
+                break
+                
+        cv2.destroyAllWindows()
+
+        # Recalcular H basándonos en las 4 esquinas de la moqueta (por si se ajustaron)
+        self.H, _ = cv2.findHomography(self.keypoints[:4], config.real_points.copy().reshape(-1, 2), cv2.RANSAC)
+        self.inverse_H = np.linalg.inv(self.H)
+        
+        return self.keypoints.copy(), self.H

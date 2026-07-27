@@ -11,7 +11,7 @@ class EventTracker:
         self.history: List[Event] = []
         self.last_event_frame = -999
 
-    def track(self, ball_dict, player_history):
+    def track(self, ball_dict, player_history, frames_cortes=[]):
         # --- CLuster NMS ---
         candidate_cluster = []
         CLUSTER_MAX_GAP = 7  # Frames máximos sin meter nada en el cluster
@@ -24,11 +24,11 @@ class EventTracker:
             current_ball = [ball['center_x'], ball['center_y']]
             print(f"frame: {ball['frame']} -> {current_ball[0], current_ball[1]}\n")
             if candidate_cluster and (ball['frame'] - candidate_cluster[-1]['frame'] > CLUSTER_MAX_GAP):
-                if last_valid_frame and (last_valid_frame - candidate_cluster[-1]['frame'] <= 5):
+                if last_valid_frame and (last_valid_frame - candidate_cluster[-1]['frame'] <= 2):
                     print(f"  -> [NMS] Cluster previo DESCARTADO por solaparse con inicio de oclusión (en gap check).")
                     candidate_cluster.clear()
                 else:
-                    self._process_cluster(candidate_cluster)
+                    self._process_cluster(candidate_cluster, frames_cortes)
 
             if math.isnan(current_ball[0]) or math.isnan(current_ball[1]):
                 continue
@@ -53,11 +53,11 @@ class EventTracker:
                     last_valid_frame = ball['frame']
                     continue
                 else:
-                    if candidate_cluster and (last_valid_frame - candidate_cluster[-1]['frame'] <= 5):
+                    if candidate_cluster and (last_valid_frame - candidate_cluster[-1]['frame'] <= 2):
                         print(f"  -> [NMS] Cluster previo DESCARTADO por solaparse con inicio de oclusión.")
                         candidate_cluster.clear()
                     else:
-                        self._process_cluster(candidate_cluster)
+                        self._process_cluster(candidate_cluster, frames_cortes)
                         
                     possible_event, new_angle = direction_detector.detect_direction_change(current_ball, last_ball, last_angle)
                     last_angle = new_angle
@@ -105,8 +105,8 @@ class EventTracker:
                 if possible_event: 
                     print(f"[Frame {ball['frame']}] CAMBIO ÁNGULO DETECTADO en flujo normal: {new_angle}")
                     closest_player, nearest_distance = self._closest_player(current_ball, ball['frame'], player_history)
-                    print(f"  -> Distancia a jugador {closest_player}: {nearest_distance:.1f} px (Umbral Normal: 100.0)")
-                    if nearest_distance < 100.0:
+                    print(f"  -> Distancia a jugador {closest_player}: {nearest_distance:.1f} px (Umbral Normal: 130.0)")
+                    if nearest_distance < 130.0:
                         origin_cord = None
                         player_record = player_history.get(closest_player, {}).get(str(ball['frame']))
                         if player_record and player_record.get('real_x') is not None and not math.isnan(player_record.get('real_x')):
@@ -126,7 +126,7 @@ class EventTracker:
             last_valid_frame = ball['frame']
             
         #Ejecutar el cluster si existe cuando acabamos
-        self._process_cluster(candidate_cluster)
+        self._process_cluster(candidate_cluster, frames_cortes)
 
         # --- ASIGNAR DESTINY CORD ---
         for i in range(len(self.history)):
@@ -144,53 +144,71 @@ class EventTracker:
                 if last_ball:
                     current_event.destiny_cord = [last_ball['real_x'], last_ball['real_y']]
 
-    def _process_cluster(self, candidate_cluster):
+    def _process_cluster(self, candidate_cluster, frames_cortes=[]):
         if not candidate_cluster:
             return
             
-        #Penalizacion con 1.2px por frame con respecto al primero del cluster para evitar que si tras el impacto
-        #la pelota sigue cerca del jugador pueda tomarse como el momento del golpeo
+        #Penalizacion con 1.2px por frame con respecto al primero del cluster
         start_frame = candidate_cluster[0]['frame']
         for c in candidate_cluster:
             frames_late = c['frame'] - start_frame
             c['score'] = c['distance'] + (frames_late * 1.2)  
             
-        #Frame con menor distancia (score)
-        best = min(candidate_cluster, key=lambda x: x['score'])
-
-        #Comprobacion de que por angulo y posicion de los jugadores en golpeos cruzados un jugador no puede hacer un evento si justo el anterior es su compañero
-        if self.history:
-            last_event = self.history[-1]
-            last_hitter = int(float(last_event.player_id))
-            current_hitter = int(float(best['player_id']))
-            frames_since_last = best['frame'] - last_event.impact_frame
+        # Ordenamos los candidatos de menor a mayor score
+        candidate_cluster.sort(key=lambda x: x['score'])
+        
+        best = None
+        for candidate in candidate_cluster:
+            current_hitter = int(float(candidate['player_id']))
+            is_valid = True
             
-            # Comparamos si son del mismo equipo (Nuestros roles son 0 y 1 para arriba, 2 y 3 para abajo)
-            is_partner = (last_hitter in [0, 1] and current_hitter in [0, 1]) or \
-                         (last_hitter in [2, 3] and current_hitter in [2, 3])
-            
-            #Si es el compañero o él mismo, y ha pasado "poco tiempo"
-            if is_partner and frames_since_last < 40:
-                last_score = getattr(last_event, 'score', 999.0)
+            if self.history:
+                last_event = self.history[-1]
+                last_hitter = int(float(last_event.player_id))
                 
-                if current_hitter == last_hitter:
-                    # Mismo jugador
-                    if frames_since_last < 15:
-                        # Demasiado pronto: es el efecto "perspective drag" o jitter visual del golpe anterior.
-                        print(f"  -> [NMS] DESCARTADO MISMO JUGADOR: frames={frames_since_last} < 15. Efecto de perspectiva 2D o jitter.")
-                    else:
-                        # Caso típico de Bote -> Golpe de pared.
-                        # Siempre sobreescribimos asumiendo que el último evento es el golpe real, porque tras un golpe válido la pelota se aleja del jugador.
-                        print(f"  -> [NMS] OVERWRITE MISMO JUGADOR: Actualizamos golpe de {current_hitter} (Score {last_score:.1f} -> {best['score']:.1f}).")
-                        last_event.impact_frame = best['frame']
-                        last_event.score = best['score']
-                        self.last_event_frame = best['frame']
-                else:
-                    #Compañero, caso típico de tiro cruzado.
-                    print(f"  -> [NMS] DESCARTADO: Jugador {current_hitter} es compañero de {last_hitter} en tiro cruzado.")
+                # Check for cuts between last event and this candidate
+                has_cut = False
+                for cut in frames_cortes:
+                    if last_event.impact_frame < cut <= candidate['frame']:
+                        has_cut = True
+                        break
                         
-                candidate_cluster.clear()
-                return
+                if not has_cut:
+                    # Comparamos si son del mismo equipo
+                    is_partner = (last_hitter in [0, 1] and current_hitter in [0, 1]) or \
+                                 (last_hitter in [2, 3] and current_hitter in [2, 3])
+                    
+                    if is_partner:
+                        frames_since_last = candidate['frame'] - last_event.impact_frame
+                        if current_hitter == last_hitter:
+                            if frames_since_last < 15:
+                                print(f"  -> [NMS] DESCARTADO MISMO JUGADOR: frames={frames_since_last} < 15. Efecto perspectiva.")
+                                is_valid = False
+                            elif frames_since_last < 40:
+                                # Caso típico de Bote -> Golpe de pared.
+                                last_score = getattr(last_event, 'score', 999.0)
+                                print(f"  -> [NMS] OVERWRITE MISMO JUGADOR: Actualizamos golpe de {current_hitter} (Score {last_score:.1f} -> {candidate['score']:.1f}).")
+                                last_event.impact_frame = candidate['frame']
+                                last_event.score = candidate['score']
+                                self.last_event_frame = candidate['frame']
+                                candidate_cluster.clear()
+                                return
+                            else:
+                                # No hay corte, y es el mismo jugador, pero pasaron mas de 40 frames
+                                print(f"  -> [NMS] DESCARTADO JUGADOR {current_hitter}: Es de su equipo y no ha habido corte (Ilegal en padel).")
+                                is_valid = False
+                        else:
+                            # Compañero
+                            print(f"  -> [NMS] DESCARTADO COMPAÑERO {current_hitter}: No ha habido corte (Ilegal en padel).")
+                            is_valid = False
+
+            if is_valid:
+                best = candidate
+                break
+
+        if not best:
+            candidate_cluster.clear()
+            return
                 
         event = Event(
             impact_frame=best['frame'],

@@ -6,6 +6,7 @@ import numpy as np
 import config
 from queue import Queue
 from threading import Thread
+from tqdm import tqdm
 from ultralytics import YOLO
 from core import BallTracker ,KeypointsCourt, PlayerTracker
 from utils import read_video, make_prediction_batch, make_track_batch, video_reader
@@ -16,8 +17,8 @@ def extract(url_video):
     # ──────── Variables and initialization ────────────────────────────────────
     BATCH_SIZE = 16
     cap, _, _, _  = read_video(url_video)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    court_model = YOLO(config.KEYPOINTS_COURT_MODEL, task='pose')
     player_model = YOLO(config.PLAYER_POSE_MODEL, task='pose')
     ball_model = YOLO(config.BALL_MODEL, task='detect')
 
@@ -33,6 +34,10 @@ def extract(url_video):
 
     is_first_frame = True
     video_ended = False
+    
+    print("Iniciando extracción de datos (jugadores y pelota)...")
+    pbar = tqdm(total=total_frames, desc="Extrayendo Frames")
+    
     while not video_ended:
 
         batch_frames = []
@@ -54,22 +59,15 @@ def extract(url_video):
                 break    
 
         if is_first_frame:
-
             first_frame = batch_frames[0]
-            result_keypoints = make_prediction_batch(court_model, batch_frames[0], conf_grade = 0.25, batch_size=1)
-            kps_obj = result_keypoints[0].keypoints if isinstance(result_keypoints, list) else result_keypoints.keypoints
-            if kps_obj is None or len(kps_obj.xy[0]) < 4:
-                continue
-                
-            kps = kps_obj.xy.cpu().numpy()
-            keypoints_court.refine_points(batch_frames[0], kps[0])
+            keypoints_court.get_delimited_court(first_frame)
+            keypoints_court.extract_homography()
             is_first_frame = False
 
         while len(batch_frames) > 0 and len(batch_frames) < BATCH_SIZE:
             batch_frames.append(batch_frames[-1])
             batch_idx.append(-2)
         
-        print(f"Pasando batch a los modelos de deteccion\n")
         result_players = make_track_batch(player_model, batch_frames, batch_size=BATCH_SIZE)
         result_ball = make_prediction_batch(ball_model, batch_frames, conf_grade=0.01, batch_size=BATCH_SIZE)
 
@@ -96,7 +94,10 @@ def extract(url_video):
             else:
                 ball_tracker.update([], frame_idx)
         
-    cap.release()   
+        pbar.update(len(batch_frames))
+        
+    pbar.close()
+    cap.release()
     ball_history = ball_tracker.get_ball_history()
     players_history = player_tracker.get_players_history()
     court_information = keypoints_court.get_court_information()

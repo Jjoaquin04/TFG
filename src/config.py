@@ -5,11 +5,9 @@ import numpy as np
 USE_OPEN_VINO = True
 
 if USE_OPEN_VINO:
-    KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint_openvino_model'
     PLAYER_POSE_MODEL = 'models/yolov8-player-pose_openvino_model'
     BALL_MODEL = 'models/yolov8-ball-bbx_openvino_model'
 else:
-    KEYPOINTS_COURT_MODEL = 'models/yolov8-court-keypoint.pt'
     PLAYER_POSE_MODEL = 'models/yolov8-player-pose.pt'
     BALL_MODEL = 'models/yolov8-ball-bbx.pt'
 
@@ -30,11 +28,11 @@ real_points= np.array([
     [5.0, 10.0],    # Esquina Superior Derecha
     [-5.0, -10.0],  # Esquina Inferior Izquierda
     [5.0, -10.0],   # Esquina Inferior Derecha
-    [0.0, 6.95],    # T Superior    
-    [0.0, -6.95],   # T Inferior      
 ], dtype=np.float32)
 
 rest_real_points = np.array([
+    [0.0, 6.95],    # T Superior    
+    [0.0, -6.95],   # T Inferior      
     [-5.0, 6.95],   # Cristal Izquierdo Superior
     [5.0, 6.95],    # Cristal Derecho Superior
     [-5.0, -6.95],  # Cristal Izquierdo Inferior

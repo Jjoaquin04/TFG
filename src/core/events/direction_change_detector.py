@@ -12,7 +12,7 @@ def detect_direction_change(current_ball, last_ball, last_angle):
     angle_change = abs(angle - last_angle)
     if angle_change > 180: 
         angle_change = 360 - angle_change
-    if angle_change > 60:
+    if angle_change > 45:
         return True, angle
     
     return False, angle
