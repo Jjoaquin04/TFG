@@ -58,7 +58,7 @@ def check_soulder_assembly(norm_keypoints_window, racket_hand):
                     min_wrist_y = keypoints_wrist_y
                     ref_y_at_min = keypoints_ref_y
                     
-                # Si la muñeca supera al hombro (armado claro para remate/bandeja)
+                # Comprobar si hay armado del brazo (muñeca alta)
                 if keypoints_wrist_y <= keypoints_ref_y:
                     return True
                     

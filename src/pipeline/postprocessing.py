@@ -53,8 +53,8 @@ def postprocessing(raw_json_path: str, video_path: str):
     
     # 2. Fase de Limpieza (Pelota, con conocimiento de los cortes)
     pbar.set_postfix_str("Limpieza de Datos")
-    frames_cortes = data.get('frames_cortes', [])
-    data = _clean_data(data, H, video_path, frames_cortes)
+    cut_frames = data.get('cut_frames', [])
+    data = _clean_data(data, H, video_path, cut_frames)
     
     # 2.5 Aplicar homografía a la pelota ya limpia
     if 'ball' in data and data['ball'] and H is not None:
@@ -71,21 +71,22 @@ def postprocessing(raw_json_path: str, video_path: str):
     
     interpolated_ball_dict = {b['frame']: b for b in interpolated_ball_list}
     event_tracker = EventTracker()
-    frames_cortes = data.get('frames_cortes', [])
-    event_tracker.track(interpolated_ball_dict, players_history, frames_cortes)
+    cut_frames = data.get('cut_frames', [])
+    event_tracker.track(interpolated_ball_dict, players_history, cut_frames)
     pbar.update(1)
     
     pbar.set_postfix_str("Clasificación de Golpes")
     stroke_classifier = StrokeClassifier()
-    events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball_dict, frames_cortes)
+    events = stroke_classifier.classify_events(event_tracker.get_history(), players_history, interpolated_ball_dict, cut_frames)
     events = event_tracker.get_history()
     
     # Asignar la mano de la pala dominante al diccionario general de cada jugador
     players_hands = stroke_classifier.get_players_racket_hands()
+    players_metadata = {}
     for pid, hand in players_hands.items():
-        str_pid = str(pid)
-        if str_pid in players_history:
-            players_history[str_pid]['racket_hand'] = hand
+        players_metadata[str(pid)] = {'racket_hand': hand}
+        
+    data['players_metadata'] = players_metadata
 
     pbar.update(1)
     pbar.close()
@@ -114,13 +115,12 @@ def postprocessing(raw_json_path: str, video_path: str):
     print(f"Interpolation finished! Saved cleaned data to {interp_path}")
     return interp_path
     
-def _clean_data(data, H, video_path, frames_cortes):
+def _clean_data(data, H, video_path, cut_frames):
     ball_history = data.get('ball', [])
     
     if ball_history:
         # Aplanar detecciones si existen
         flat_ball_history = []
-        print(f"2. EMPEZANDO FASE DE ELIMINACION DE PELOTAS SITUADAS AL LADO DE LA RED...\n")
         for frame_data in ball_history:
             if 'detections' in frame_data:
                 detections = frame_data['detections']
@@ -149,7 +149,6 @@ def _clean_data(data, H, video_path, frames_cortes):
         ball_df_raw = pd.DataFrame(flat_ball_history)
         if not ball_df_raw.empty:
                 # Lógica de caché MOG2
-                import os
                 video_name = os.path.splitext(os.path.basename(video_path))[0]
                 cache_file = os.path.join("data", "outputs", "json", "raw_json", f"{video_name}_mog2_cache.json")
                 
@@ -165,7 +164,7 @@ def _clean_data(data, H, video_path, frames_cortes):
                     with open(cache_file, 'w') as f:
                         json.dump(records, f)
                 players_history = data.get('players', [])
-                refined_list = filter_ball_outliers(ball_df_mog2, frames_cortes=frames_cortes, players_history=players_history, raw_ball_df=ball_df_raw)
+                refined_list = filter_ball_outliers(ball_df_mog2, cut_frames=cut_frames, players_history=players_history, raw_ball_df=ball_df_raw)
                 data['ball'] = refined_list
     return data
 
@@ -191,8 +190,8 @@ def _extract_features(data, H):
     players_df = remove_static_players(players_df, 300.0)
     players_df = remove_false_detections_players(players_df, 5)
     players_df = normalice_keypoints(players_df)
-    players_df, frames_cortes = reorder_yolo_ids(players_df)
-    data['frames_cortes'] = frames_cortes
+    players_df, cut_frames = reorder_yolo_ids(players_df)
+    data['cut_frames'] = cut_frames
         
 
     #Volver a meter en un dict
@@ -207,5 +206,5 @@ def _extract_features(data, H):
 
     primer_frame = players_df['frame'].min()
 
-    jugadores_primer_frame = players_df[players_df['frame'] == primer_frame]
+    first_frame_players = players_df[players_df['frame'] == primer_frame]
     return data

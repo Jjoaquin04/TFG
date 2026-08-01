@@ -1,54 +1,71 @@
 import math
 from utils.event.event_utils import is_cross, impact_low_hip
 
-def is_service(player_keypoints_window, impact_keypoints, racket_hand, event, prev_event_raw, players_history, impact_frame, frames_cortes, is_first_event):
+def is_service(player_keypoints_window, impact_keypoints, racket_hand, event, prev_event_raw, players_history, impact_frame, cut_frames, is_first_event):
+        if is_first_event:
+            # Si es el primer evento del partido, tiene que ser un saque
+            c2 = is_cross(event.origin_cord, event.destiny_cord, event)
+            if not c2 and event.destiny_cord is not None and abs(event.destiny_cord[0]) < 1.5:
+                event.trajectory = 'cross'
+            return [2.0, 'service', 1.0]
+
         c1 = _check_line_serve(event.origin_cord)
+        if not c1:
+            return [0.0, 'service', 0.0]
+
         c2 = is_cross(event.origin_cord, event.destiny_cord, event)
+
+        # Limpieza de dirección de saque 
+        if not c2: # Si es paralelo
+            # Comprobamos si ha ido a la T (X cercano a 0)
+            if event.destiny_cord is not None and abs(event.destiny_cord[0]) < 1.0:
+                # Forzamos a que sea cruzado
+                c2 = True
+                event.trajectory = 'cross'
+            else:
+                return [0.0, 'service', 0.0]
+                
         c3 = impact_low_hip(impact_keypoints, racket_hand)
         c4 = _check_players_position_serve(event, players_history, impact_frame)
-        condition_list = [c1, c2, c3, c4]
         
-        sum_cond = sum(condition_list)
-        score = sum_cond / len(condition_list)
+        condition_list = [c2, c3, c4]
+        score = 0.4 + (sum(condition_list) * 0.2) # Score base entre 0.4 y 1.0
 
         is_after_cut = False
         if is_first_event:
             is_after_cut = True
         else:
-            for cut_frame in frames_cortes:
-                print(f"{impact_frame - cut_frame}")
+            for cut_frame in cut_frames:
                 if 0 <= (impact_frame - cut_frame) <= 45:
                     is_after_cut = True
                     break
                     
         # Tratamiento de dobles saques tras corte o errores:
-        es_mismo_jugador = True
+        is_same_player = True
         is_second_serve = False
         if prev_event_raw is not None and prev_event_raw.type_of_shot == 'service':
             if prev_event_raw.player_id != event.player_id:
-                es_mismo_jugador = False
+                is_same_player = False
             else:
                 is_second_serve = True
                 
-        if not es_mismo_jugador:
-            # Si el evento anterior fue un saque y ahora golpea otro jugador, es IMPOSIBLE que esto sea un saque.
+        if not is_same_player:
             return [0.0, 'service', 0.0]
             
-        # Bonificación si es después de un corte (o primer evento del partido)
+        # Ajustamos los pesos de los cortes para que no rompan la lógica
         if is_after_cut:
-            score += 1.0
-        # Penalización si no es después de un corte Y no es un segundo saque (mismo jugador tras saque)
-        elif not is_second_serve:
-            score -= 1.0
+            score = 2.0 # El primer golpe tras un corte de cámara (y detrás de la línea) es siempre saque
+        elif is_second_serve:
+            score = 2.0 
+        else:
+            # Si estamos en medio de un punto (no hay corte ni es segundo saque), es muy raro que sea saque
+            score -= 0.5
             
         # Tie breaker: Distancia ideal desde la línea de saque (Y=6.95)
         tie_breaker = 0.0
         if event.origin_cord is not None:
             dist_to_line = abs(abs(event.origin_cord[1]) - 6.95)
             tie_breaker = 1.0 / (1.0 + dist_to_line)
-
-        print(f"      [is_service] Conditions: detras_linea={c1}, cruzado={c2}, impacto_bajo={c3}, pos_equipo={c4} | after_cut={is_after_cut} | mismo_jug={es_mismo_jugador}")
-        print(f"    Event {event.impact_frame}, [SCORE Servicio] {score, tie_breaker}\n")
         return [score, 'service', tie_breaker]
 
 def _check_players_position_serve(event, players_history, impact_frame):
@@ -91,7 +108,6 @@ def _check_players_position_serve(event, players_history, impact_frame):
 def _check_line_serve(event_origin):
         if event_origin is None:
             return False
-        # Para el debug imprimimos las coords
-        print(f"[StrokeClassifier] check_line_serve coords: X={event_origin[0]:.2f}, Y={event_origin[1]:.2f}")
-        # La línea de saque está en Y = 6.95 y Y = -6.95. Dejamos 5.5 como margen generoso hacia delante.
-        return abs(event_origin[1]) >= 5.5
+    
+        # La línea de saque está en Y = 6.95 y Y = -6.95. Dejamos 6.0 como margen (antes 5.5).
+        return abs(event_origin[1]) >= 6.0

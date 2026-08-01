@@ -1,13 +1,13 @@
+import os
 import pandas as pd
 import numpy as np
 import cv2
+import core.court.keypoints
+import utils.data_extraction.extractor
 from sklearn.cluster import DBSCAN
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
-# ==========================================
-# UTILIDADES Y MÉTODOS COMUNES
-# ==========================================
 
 def ensure_centers(df):
     #Comprobar que el dataframe tiene el center_x y center_y 
@@ -57,7 +57,6 @@ def interpolate_ball(ball_df, max_gap_frames=15, cuts=None):
 # CAPAS DE FILTRADO Y REFINAMIENTO (PIPELINE)
 # ==========================================
 def apply_mog2_leak_catcher(df_iter, raw_ball_df):
-
     if raw_ball_df is None or raw_ball_df.empty:
         return df_iter
         
@@ -108,26 +107,22 @@ def apply_mog2_leak_catcher(df_iter, raw_ball_df):
 # FUNCIONES PRINCIPALES EXPORTADAS
 # ==========================================
 
-def apply_tribunal_inferior(threads, df_iter, video_path):
+def apply_initial_filter(threads, df_iter, video_path):
     """
     Fase 2: Purga rápida de mini-hilos (Tribunal Inferior).
     Elimina hilos <= 2 frames, hilos estáticos (< 20px de movimiento), 
     y hilos totalmente fuera del polígono expandido de la pista.
     """
-    import numpy as np
     survivors = []
     
     halo_polygon = None
     if video_path is not None:
-        import os
-        import cv2
         if os.path.exists(video_path):
-            from src.core.court.keypoints import KeypointsCourt
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
             cap.release()
             if ret:
-                court = KeypointsCourt()
+                court = core.court.keypoints.KeypointsCourt()
                 court.get_delimited_court(frame)
                 if len(court.keypoints) >= 4:
                     pts = np.array(court.keypoints[0:4], dtype=np.int32)
@@ -147,7 +142,6 @@ def apply_tribunal_inferior(threads, df_iter, video_path):
             
         # 1. Filtro Espacial (Halo)
         if halo_polygon is not None:
-            import cv2
             all_outside = True
             for p in pts:
                 if cv2.pointPolygonTest(halo_polygon, (float(p[0]), float(p[1])), False) >= 0:
@@ -157,8 +151,7 @@ def apply_tribunal_inferior(threads, df_iter, video_path):
                 continue
                 
         # 2. Filtro Estático (Sólo aplicable a hilos que han vivido lo suficiente)
-        # Si un hilo dura 1 o 2 frames, no le ha dado tiempo a moverse, le damos el beneficio de la duda.
-        # Pero si dura más de 3 frames y apenas se ha movido 20px, es un objeto estático (logo, reflejo).
+        # Sdura más de 3 frames y apenas se ha movido 20px, es un objeto estático (logo, reflejo).
         if len(pts) > 3:
             dx = np.max(pts_arr[:, 0]) - np.min(pts_arr[:, 0])
             dy = np.max(pts_arr[:, 1]) - np.min(pts_arr[:, 1])
@@ -170,17 +163,15 @@ def apply_tribunal_inferior(threads, df_iter, video_path):
         
     return survivors
 
-def link_tracklets_fase3(threads, df_iter):
+def link_tracklets_phase3(threads, df_iter):
     """
     Fase 3: Unión de Hilos (Tracklet Linking) para saltar oclusiones.
     """
-    from scipy.optimize import linear_sum_assignment
-    import numpy as np
     
     if len(threads) <= 1:
         return threads
         
-    # Extraer info temporal y geométrica de cada hilo
+    # Extraer info temporal y geométrica de cada thread
     for t in threads:
         subset = df_iter.loc[t['indices_df']]
         t['start_frame'] = subset['frame'].min()
@@ -210,41 +201,35 @@ def link_tracklets_fase3(threads, df_iter):
             if dt <= 0 or dt > 5:
                 continue
                 
-            dist_espacial = np.linalg.norm(B['start_pos'] - A['end_pos'])
+            spatial_dist = np.linalg.norm(B['start_pos'] - A['end_pos'])
             
-            # Regla estricta: No permitir teletransportes absurdos
-            if dist_espacial > 150.0:
+            # Descartar saltos espaciales inviables
+            if spatial_dist > 150.0:
                 continue
             
-            # Excepción Rebote
-            if dt <= 2 and dist_espacial <= 30.0:
-                # Usamos la distancia como coste en lugar de 0, para que si hay varios 
-                # ruidos cerca, se quede con el más próximo.
-                cost_matrix[i, j] = dist_espacial 
+            # Enlace de rebote
+            if dt <= 2 and spatial_dist <= 30.0:
+                cost_matrix[i, j] = spatial_dist 
                 continue
                 
             # Modelo Cinemático
             proj_pos = A['end_pos'] + A['inertia'] * dt
-            E_espacial = np.linalg.norm(B['start_pos'] - proj_pos)
+            spatial_error = np.linalg.norm(B['start_pos'] - proj_pos)
             
-            # Regla estricta: Si la predicción falla por mucho, NO enlazamos
-            if E_espacial > 80.0:
+            if spatial_error > 80.0:
                 continue
                 
-            cost_matrix[i, j] = w1 * E_espacial + w2 * dt
+            cost_matrix[i, j] = w1 * spatial_error + w2 * dt
             
-    # Resolución Húngara
     cost_matrix_hungarian = cost_matrix.copy()
     cost_matrix_hungarian[cost_matrix_hungarian == np.inf] = 1e6
     row_ind, col_ind = linear_sum_assignment(cost_matrix_hungarian)
     
-    # Extraer los emparejamientos válidos
     next_threads = {i: i for i in range(N)}
     for r, c in zip(row_ind, col_ind):
         if cost_matrix[r, c] < np.inf:
             next_threads[r] = c
             
-    # Construir súper-hilos
     visited = set()
     super_threads = []
     
@@ -268,14 +253,7 @@ def link_tracklets_fase3(threads, df_iter):
         
     return super_threads
 
-def apply_tribunal_supremo(threads, df_iter):
-    """
-    Fase 4: Tribunal Supremo (Extracción Final).
-    Busca la Trayectoria Verdadera usando Longitud e Inercia (Zig-zag ratio).
-    """
-    import numpy as np
-    import pandas as pd
-    
+def apply_final_filter(threads, df_iter):
     if not threads:
         return df_iter.copy(), threads, set()
         
@@ -289,10 +267,6 @@ def apply_tribunal_supremo(threads, df_iter):
         frames = df_iter.loc[t['indices_df'], 'frame'].values
         total_frames = frames.max() - frames.min() + 1
         
-        # Ratio de Inercia (Versión Robusta)
-        # En lugar de usar la distancia neta (Fin - Inicio), usamos la "Diagonal Máxima" (Max Span).
-        # Esto salva los globos verticales y los botes de saque, ya que si vuelve al mismo sitio 
-        # la distancia neta sería 0, pero el Max Span medirá la altura del globo o del bote.
         min_x, max_x = np.min(pts[:, 0]), np.max(pts[:, 0])
         min_y, max_y = np.min(pts[:, 1]), np.max(pts[:, 1])
         max_span = np.sqrt((max_x - min_x)**2 + (max_y - min_y)**2)
@@ -307,7 +281,6 @@ def apply_tribunal_supremo(threads, df_iter):
     if not scores:
         return df_iter.copy(), threads, set()
         
-    # Selección Greedy: Ordenamos por score descendente
     sorted_indices = np.argsort(scores)[::-1]
     
     valid_tracks = set()
@@ -318,7 +291,6 @@ def apply_tribunal_supremo(threads, df_iter):
         score = scores[idx]
         t = threads[idx]
         
-        # Calculamos la amplitud (span) máxima
         t_indices = t['indices_df']
         t_data = df_iter.loc[t_indices]
         t_frames = t_data['frame'].values
@@ -328,18 +300,14 @@ def apply_tribunal_supremo(threads, df_iter):
         min_y, max_y = np.min(t_centers[:, 1]), np.max(t_centers[:, 1])
         max_span = np.sqrt((max_x - min_x)**2 + (max_y - min_y)**2)
         
-        # Filtro Absoluto: Ruido de menos de 3 puntos
         if score < 3.0:
             death_causes[t['id']] = f"Score {score:.1f}<3"
             continue
             
-        # Filtro de Estático Absoluto: Si NUNCA sale de una caja de 80px, es ruido puro disperso (marcador, logo, zapato)
-        # Una pelota real (incluso un bote antes de sacar) cubre mucho más de 80 píxeles.
         if max_span < 80.0:
             death_causes[t['id']] = f"Estatico Absoluto ({max_span:.0f}px)"
             continue
             
-        # Filtro de Hilos Cortos-Lentos: Si dura poco y encima no se mueve casi nada, es un brazo/hombro de jugador
         if score < 8.0 and max_span < 150.0:
             death_causes[t['id']] = f"Corto-Lento ({score:.1f}, {max_span:.0f}px)"
             continue
@@ -348,7 +316,6 @@ def apply_tribunal_supremo(threads, df_iter):
         overlap_count = 0
         teleport = False
         
-        # Comprobar solapamiento temporal y espacial
         for f, (cx, cy) in zip(t_frames, t_centers):
             if f in occupied_frames:
                 overlap_count += 1
@@ -358,12 +325,11 @@ def apply_tribunal_supremo(threads, df_iter):
                     if dist < min_dist:
                         min_dist = dist
                 
-                # Si en el mismo frame ocurren dos hilos pero están a >50px, son objetos físicos distintos.
                 if min_dist > 50.0:
                     is_impostor = True
                     break
         
-        # Comprobar teletransporte absurdo respecto a ganadores anteriores (relleno de huecos falso)
+        # Validar saltos temporales
         if not is_impostor and overlap_count == 0:
             t_start = t_frames.min()
             past_frames = [f for f in occupied_frames.keys() if f < t_start]
@@ -376,8 +342,8 @@ def apply_tribunal_supremo(threads, df_iter):
                     past_pos = np.array(occupied_frames[closest_past][0])
                     dist = np.linalg.norm(start_pos - past_pos)
                     speed = dist / dt
-                    # Si requiere moverse a más de 120 px/frame (aprox 3600 px/segundo), es físicamente imposible.
-                    # Significa que este hilo es ruido en otra parte de la pista.
+                    # Descartar trayectorias demasiado rápidas para ser reales
+                    # Significa que este thread es ruido en otra parte de la pista.
                     if speed > 120.0:
                         teleport = True
                         
@@ -416,11 +382,8 @@ def apply_tribunal_supremo(threads, df_iter):
     return df_full, threads, valid_tracks, death_causes
 
 
-def link_tracks_cero_memoria(df_iter, R_max=50.0):
+def link_tracks_fast(df_iter, R_max=50.0):
     """Fase 1: Enlazado Vectorizado (Cero Memoria)."""
-    from scipy.spatial.distance import cdist
-    from scipy.optimize import linear_sum_assignment
-    import numpy as np
 
     grouped_frame = df_iter.groupby('frame')
     thread_alive = []
@@ -433,14 +396,14 @@ def link_tracks_cero_memoria(df_iter, R_max=50.0):
             continue
             
         new_detections = valid_frame[['center_x', 'center_y']].to_numpy()
-        indices_nuevos = valid_frame.index.to_numpy()
+        new_indices = valid_frame.index.to_numpy()
 
         if len(thread_alive) == 0:
             for i in range(len(new_detections)):
                 thread_alive.append({
                     'id': next_thread_id,
                     'positions': [new_detections[i]],
-                    'indices_df': [indices_nuevos[i]]
+                    'indices_df': [new_indices[i]]
                 })
                 next_thread_id += 1
             continue
@@ -457,54 +420,52 @@ def link_tracks_cero_memoria(df_iter, R_max=50.0):
                 posiciones_esperadas[i] = current_position + direction_vector
 
         # 2. Matriz de distancias
-        matriz_distancias = cdist(posiciones_esperadas, new_detections)
+        dist_matrix = cdist(posiciones_esperadas, new_detections)
 
         # 3. Asignación óptima (Húngaro)
-        filas_hilos, columnas_det = linear_sum_assignment(matriz_distancias)
+        thread_rows, columnas_det = linear_sum_assignment(dist_matrix)
 
         # 4. Ruptura estricta y nacimientos
-        hilos_que_sobreviven = []
+        surviving_threads = []
         detecciones_usadas = set()
 
-        for idx_hilo, idx_det in zip(filas_hilos, columnas_det):
-            distancia = matriz_distancias[idx_hilo, idx_det]
+        for thread_idx, idx_det in zip(thread_rows, columnas_det):
+            distancia = dist_matrix[thread_idx, idx_det]
             if distancia <= R_max:
-                hilo = thread_alive[idx_hilo]
-                hilo['positions'].append(new_detections[idx_det])
-                hilo['indices_df'].append(indices_nuevos[idx_det])
-                hilos_que_sobreviven.append(hilo)
+                thread = thread_alive[thread_idx]
+                thread['positions'].append(new_detections[idx_det])
+                thread['indices_df'].append(new_indices[idx_det])
+                surviving_threads.append(thread)
                 detecciones_usadas.add(idx_det)
             else:
-                thread_finished.append(thread_alive[idx_hilo])
+                thread_finished.append(thread_alive[thread_idx])
 
-        hilos_no_emparejados = set(range(len(thread_alive))) - set(filas_hilos)
-        for i in hilos_no_emparejados:
+        unmatched_threads = set(range(len(thread_alive))) - set(thread_rows)
+        for i in unmatched_threads:
             thread_finished.append(thread_alive[i])
 
         for i in range(len(new_detections)):
             if i not in detecciones_usadas:
-                hilos_que_sobreviven.append({
+                surviving_threads.append({
                     'id': next_thread_id,
                     'positions': [new_detections[i]],
-                    'indices_df': [indices_nuevos[i]]
+                    'indices_df': [new_indices[i]]
                 })
                 next_thread_id += 1
 
-        thread_alive = hilos_que_sobreviven
+        thread_alive = surviving_threads
 
     thread_finished.extend(thread_alive)
     return thread_finished
 
-def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frames=9, max_jump_px=300.0, static_px=20.0, frames_cortes=None, players_history=None, raw_ball_df=None, **kwargs):
-    print(f"4. EMPEZANDO FASE DE REFINAMIENTO DE DETECCIONES DE LA PELOTA...\n")
+def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frames=9, max_jump_px=300.0, static_px=20.0, cut_frames=None, players_history=None, raw_ball_df=None, **kwargs):
 
     # Inicialización
     if isinstance(ball_history, pd.DataFrame):
         df_ball = ball_history.copy()
         if df_ball.index.name == 'frame': df_ball = df_ball.reset_index()
     else:
-        from src.utils.data_extraction.extractor import calculate_ball_centers
-        df_ball = pd.DataFrame(calculate_ball_centers(ball_history))
+        df_ball = pd.DataFrame(utils.data_extraction.extractor.calculate_ball_centers(ball_history))
         if 'frame' not in df_ball.columns and df_ball.index.name == 'frame': df_ball = df_ball.reset_index()
             
     df_iter = ensure_centers(df_ball)
@@ -513,26 +474,25 @@ def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frame
     # MOG2 Leak Catcher
     df_iter = apply_mog2_leak_catcher(df_iter, raw_ball_df)
 
-    # Fase 1: Track Linker Vectorizado (Cero Memoria)
-    threads_f1 = link_tracks_cero_memoria(df_iter, R_max=50.0)
+    # Paso 1: Enlazado rápido por distancia
+    threads_f1 = link_tracks_fast(df_iter, R_max=50.0)
 
-    # Fase 2: Tribunal Inferior (Purga Rápida)
+    # Paso 2: Filtrado rápido de ruido
     video_path = kwargs.get('video_path')
-    threads_f2 = apply_tribunal_inferior(threads_f1, df_iter, video_path)
+    threads_f2 = apply_initial_filter(threads_f1, df_iter, video_path)
 
-    # Fase 3: Unión de Hilos (Tracklet Linking)
-    threads_f3 = link_tracklets_fase3(threads_f2, df_iter)
+    # Paso 3: Enlazado de tramos
+    threads_f3 = link_tracklets_phase3(threads_f2, df_iter)
 
-    # Fase 4: Tribunal Supremo
-    df_full, threads_f4, valid_tracks, death_causes = apply_tribunal_supremo(threads_f3, df_iter)
+    # Paso 4: Extracción de trayectoria final
+    df_full, threads_f4, valid_tracks, death_causes = apply_final_filter(threads_f3, df_iter)
         
-    final_list = interpolate_ball(df_full, max_gap_frames=max_gap_frames, cuts=frames_cortes)
+    final_list = interpolate_ball(df_full, max_gap_frames=max_gap_frames, cuts=cut_frames)
     return final_list
 
     
 
 def remove_false_detections_ball(ball_df, video_path, mog_history=200, mog_varThreshold=50, mog_ratio=0.17):
-    print(f"3. EMPEZANDO FASE DE ELIMINACION DE FALSE DETECTIONS DE LA PELOTA...\n")
     if ball_df.empty: return ball_df
 
     cap = cv2.VideoCapture(video_path)

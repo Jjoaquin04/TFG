@@ -22,7 +22,7 @@ def apply_homography(player_df: pd.DataFrame, homography_matrix, x_col, y_col):
     if not mask.any():
         player_df['real_x'] = np.nan
         player_df['real_y'] = np.nan
-        return df
+        return player_df
 
     pts = player_df.loc[mask, [x_col, y_col]].values
     pts = pts.reshape(-1, 1, 2).astype(np.float32)
@@ -102,7 +102,6 @@ def normalice_keypoints(player_df: pd.DataFrame):
     return player_df
 
 def reorder_yolo_ids(players_df):
-    print("1. EMPEZANDO FASE DE REORDENACION DE IDS...\n")
     master_info = _obtain_four_ids(players_df)
     first_bottom_footprint = master_info['bottom_footprint']
     role = master_info['master_role']
@@ -112,14 +111,14 @@ def reorder_yolo_ids(players_df):
     new_ids = players_frame_min[players_frame_min > first_frame]
     groups_ids = new_ids.groupby(new_ids).groups
     
-    frames_cortes = []
+    cut_frames = []
     for cut_frame, ids in groups_ids.items():
         valid_frame = cut_frame
         players_cut = players_df[players_df['frame'] == valid_frame]
         
         #Si en el momento exacto del nuevo ID están los 4 jugadores, lo consideramos un corte limpio
         if len(players_cut) == 4:
-            frames_cortes.append(cut_frame)
+            cut_frames.append(cut_frame)
         while len(players_cut) != 4 and valid_frame <= players_df['frame'].max():
             valid_frame += 1
             players_cut = players_df[players_df['frame'] == valid_frame]
@@ -128,7 +127,7 @@ def reorder_yolo_ids(players_df):
             _reasing_ids(players_cut, first_bottom_footprint, role)
 
     players_df['player_id'] = players_df['player_id'].map(role).fillna(players_df['player_id'])
-    return players_df, frames_cortes
+    return players_df, cut_frames
 
 def _obtain_four_ids(players_df: pd.DataFrame):
     first_frame = players_df['frame'].min()

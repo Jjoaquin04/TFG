@@ -12,7 +12,7 @@ class StrokeClassifier:
     def __init__(self):
         self.racket_player: dict[int, (int,int)] = {}
 
-    def classify_events(self, events_history, players_history, ball_history, frames_cortes=[]):
+    def classify_events(self, events_history, players_history, ball_history, cut_frames=[]):
         for i, event in enumerate(events_history):
             impact_frame = event.get_impact_frame()
             frame_window = event.frames_windows
@@ -23,12 +23,12 @@ class StrokeClassifier:
             
             #Validar que prev_event y next_event pertenecen al mismo punto (no hay corte entre medias)
             if prev_event is not None:
-                for cut in frames_cortes:
+                for cut in cut_frames:
                     if prev_event.impact_frame < cut <= impact_frame:
                         prev_event = None
                         break
             if next_event is not None:
-                for cut in frames_cortes:
+                for cut in cut_frames:
                     if impact_frame < cut <= next_event.impact_frame:
                         next_event = None
                         break
@@ -51,19 +51,23 @@ class StrokeClassifier:
                     
                     #Le pasamos el evento anterior para comprobar si es un doble saque
                     prev_event_raw = events_history[i-1] if i > 0 else None
-                    scores.append(is_service(player_keypoints_window, impact_keypoints, racket_hand, event, prev_event_raw, players_history, impact_frame, frames_cortes, i == 0))
+                    service_score = is_service(player_keypoints_window, impact_keypoints, racket_hand, event, prev_event_raw, players_history, impact_frame, cut_frames, i == 0)
+                    if service_score[0] >= 2.0:
+                        event.type_of_shot = 'service'
+                        continue
+                        
+                    scores.append(service_score)
                     scores.append(is_smash(player_keypoints_window, impact_keypoints, racket_hand, event, next_event, ball_history))
                     scores.append(is_lob(event, next_event, ball_history, impact_keypoints, racket_hand))
                     scores.append(is_drive_or_volley(event, next_event, ball_history, impact_keypoints, racket_hand))
                     
                     # score_info is [score, event_type, tie_breaker_score]
-                    # Ordenar por score descendente y en caso de empate por tie_breaker_score descendente
+                    #Ordenar por score descendente y en caso de empate por tie_breaker_score descendente
                     scores.sort(key=lambda x: (x[0], x[2]), reverse=True)
                     
                     best_match = scores[0]
                     if best_match[0] > 0.0:
                         event.type_of_shot = best_match[1]
-                        print(f"[StrokeClassifier] EVENTO {event.impact_frame} CLASIFICADO COMO {best_match[1].upper()} (Score: {best_match[0]:.2f}, TieBreaker: {best_match[2]:.2f}).")
                     else:
                         event.type_of_shot = 'unknown'
 
@@ -88,16 +92,15 @@ class StrokeClassifier:
                 right_wrist = kp[10]
                 
                 if left_wrist[0] != 0.0 or left_wrist[1] != 0.0:
-                    dist_l = math.dist((left_wrist[0], left_wrist[1]), (bx, by))
-                    if dist_l < min_left_dist:
-                        min_left_dist = dist_l
+                    left_dist = math.dist((left_wrist[0], left_wrist[1]), (bx, by))
+                    if left_dist < min_left_dist:
+                        min_left_dist = left_dist
                         
                 if right_wrist[0] != 0.0 or right_wrist[1] != 0.0:
-                    dist_r = math.dist((right_wrist[0], right_wrist[1]), (bx, by))
-                    if dist_r < min_right_dist:
-                        min_right_dist = dist_r
+                    right_dist = math.dist((right_wrist[0], right_wrist[1]), (bx, by))
+                    if right_dist < min_right_dist:
+                        min_right_dist = right_dist
 
-        print(f"[StrokeClassifier] Distancia min a la bola -> Izq: {min_left_dist:.1f}, Der: {min_right_dist:.1f}")
         hand = 'left' if min_left_dist < min_right_dist else 'right'
         if player_id in self.racket_player:
             (left_count, right_count) = self.racket_player.get(player_id)

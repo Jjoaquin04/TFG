@@ -2,9 +2,8 @@ import math
 from utils.event.event_utils import impact_high
 
 def is_lob(event, next_event, ball_history, impact_keypoints, racket_hand):
+        # Si no tenemos siguiente evento no es un globo
         if next_event is None:
-            print(f"      [is_lob] No hay next_event. Score=0.0")
-            print(f"    Event {event.impact_frame}, [SCORE Lob] (0.0, 0.0)\n")
             return [0.0, 'lob', 0.0]
             
         frames_flight = next_event.impact_frame - event.impact_frame
@@ -35,7 +34,6 @@ def is_lob(event, next_event, ball_history, impact_keypoints, racket_hand):
         is_parabola = False
         if start_y is not None and end_y is not None:
             highest_player_y = min(start_y, end_y)
-            # Exigimos que la pelota suba al menos 60 píxeles por encima del punto más alto (menor Y) de los jugadores
             if min_y < (highest_player_y - 60):
                 is_parabola = True
         else:
@@ -43,18 +41,18 @@ def is_lob(event, next_event, ball_history, impact_keypoints, racket_hand):
             if min_y < 250:
                 is_parabola = True
                 
-        cond1 = frames_flight > 30
-        cond2 = (frames_flight > 20 and is_parabola)
+        cond1 = frames_flight > 20 and is_parabola
+        cond2 = frames_flight > 25 
         
         score = 0.0
         if cond1 and cond2:
             score = 1.0
         elif cond1 or cond2:
-            score = 0.5
+            score = 0.75 
             
-        # Si no describe una parábola real (solo es un golpe lento), lo penalizamos fuertemente
+        # Penalizar si la trayectoria es muy plana
         if not is_parabola:
-            score -= 0.5
+            score *= 0.5
             
         # Exclusión mutua: un globo no se golpea con la técnica de remate (muñeca alta)
         is_high_impact = False
@@ -62,13 +60,11 @@ def is_lob(event, next_event, ball_history, impact_keypoints, racket_hand):
             is_high_impact = impact_high(impact_keypoints, racket_hand)
             
         if is_high_impact:
-            score *= 0.25 # Penalización severa
+            score *= 0.8 # Reducir penalización para conservar globos altos
             
-        # Tie breaker: combinar tiempo de vuelo alto y min_y bajo
+        # Desempate usando tiempo de vuelo y altura
         tie_breaker = 0.0
         if min_y != math.inf:
             tie_breaker = frames_flight + max(0, 350.0 - min_y)
             
-        print(f"      [is_lob] frames_flight={frames_flight}, min_y={min_y:.2f} | cond1(>30)={cond1}, cond2(>25 & y<250)={cond2} | is_high_impact={is_high_impact}")
-        print(f"    Event {event.impact_frame}, [SCORE Lob] {score, tie_breaker}\n")
         return [score, 'lob', tie_breaker]

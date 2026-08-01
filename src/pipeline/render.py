@@ -16,6 +16,7 @@ def render(video_path: str, interp_json_path: str):
     
     ball_data_by_frame = {item['frame']: item for item in data.get('ball', [])}
     players_data_by_frame = data.get('players', {})
+    players_metadata = data.get('players_metadata', {})
     events_data_by_frame = data.get('events', {})
 
     court_info = data.get('court', None)
@@ -84,8 +85,8 @@ def render(video_path: str, interp_json_path: str):
             impact = event.get('impact_frame', '?')
             traj = event.get('trajectory', 'N/A')
             
-            player_global_data = players_data_by_frame.get(str(player), {})
-            hand = player_global_data.get('racket_hand', "Unknown")
+            player_metadata = players_metadata.get(str(player), {})
+            hand = player_metadata.get('racket_hand', "Unknown")
 
             current_event_text = [
                 f"Impact Frame: {impact}",
