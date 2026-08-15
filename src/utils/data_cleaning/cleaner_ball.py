@@ -56,51 +56,34 @@ def interpolate_ball(ball_df, max_gap_frames=15, cuts=None):
 # ==========================================
 # CAPAS DE FILTRADO Y REFINAMIENTO (PIPELINE)
 # ==========================================
-def apply_mog2_leak_catcher(df_iter, raw_ball_df):
-    if raw_ball_df is None or raw_ball_df.empty:
+def apply_spatial_density_filter(df_iter, grid_size=20, max_detections=15):
+    if df_iter is None or df_iter.empty:
         return df_iter
         
-    valid_raw = raw_ball_df.dropna(subset=['center_x', 'center_y']).copy()
-    if valid_raw.empty:
+    valid_df = df_iter.dropna(subset=['center_x', 'center_y']).copy()
+    if valid_df.empty:
         return df_iter
         
-    # Clustering espacial ultra-ligero
-    valid_raw['grid_x'] = (valid_raw['center_x'] // 5) * 5
-    valid_raw['grid_y'] = (valid_raw['center_y'] // 5) * 5
-    valid_raw['cluster_global'] = valid_raw['grid_x'].astype(int).astype(str) + "_" + valid_raw['grid_y'].astype(int).astype(str)
+    # Asignar a grid
+    valid_df['grid_x'] = (valid_df['center_x'] // grid_size)
+    valid_df['grid_y'] = (valid_df['center_y'] // grid_size)
+    valid_df['grid_id'] = valid_df['grid_x'].astype(int).astype(str) + "_" + valid_df['grid_y'].astype(int).astype(str)
     
-    valid_mog2 = df_iter.dropna(subset=['center_x', 'center_y']).copy()
-    valid_raw['id_match'] = valid_raw['frame'].astype(str) + "_" + valid_raw['x_min'].astype(str)
+    # Contar detecciones por celda
+    grid_counts = valid_df['grid_id'].value_counts()
     
-    if not valid_mog2.empty:
-        valid_mog2['id_match'] = valid_mog2['frame'].astype(str) + "_" + valid_mog2['x_min'].astype(str)
-        survivors_ids = set(valid_mog2['id_match'])
-        
-        valid_raw['survived'] = valid_raw['id_match'].isin(survivors_ids)
-        
-        cluster_stats = valid_raw.groupby('cluster_global').agg(
-            total=('survived', 'count'),
-            vivos=('survived', 'sum')
-        )
-        cluster_stats['muertos'] = cluster_stats['total'] - cluster_stats['vivos']
-        cluster_stats['tasa_muerte'] = cluster_stats['muertos'] / cluster_stats['total']
-        
-        # Zonas tóxicas
-        toxic_clusters = cluster_stats[(cluster_stats['muertos'] > 15) & (cluster_stats['tasa_muerte'] > 0.8)].index
-        
-        leaks_df = valid_raw[(valid_raw['cluster_global'].isin(toxic_clusters)) & (valid_raw['survived'] == True)]
-        leaks_ids = set(leaks_df['id_match'])
-        
-        df_iter['id_match'] = df_iter['frame'].astype(str) + "_" + df_iter['x_min'].astype(str)
-        leaks_mask = df_iter['id_match'].isin(leaks_ids)
-        
-        if leaks_mask.any():
-            for col in ['x_min', 'y_min', 'x_max', 'y_max', 'center_x', 'center_y']:
-                if col in df_iter.columns:
-                    df_iter.loc[leaks_mask, col] = None
-                
-        df_iter = df_iter.drop(columns=['id_match'], errors='ignore')
-        
+    # Identificar celdas con ruido estático
+    static_grids = grid_counts[grid_counts > max_detections].index
+    
+    # Filtrar
+    mask_static = valid_df['grid_id'].isin(static_grids)
+    leaks_indices = valid_df[mask_static].index
+    
+    if len(leaks_indices) > 0:
+        for col in ['x_min', 'y_min', 'x_max', 'y_max', 'center_x', 'center_y']:
+            if col in df_iter.columns:
+                df_iter.loc[leaks_indices, col] = None
+            
     return df_iter
 
 # ==========================================
@@ -458,7 +441,7 @@ def link_tracks_fast(df_iter, R_max=50.0):
     thread_finished.extend(thread_alive)
     return thread_finished
 
-def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frames=9, max_jump_px=300.0, static_px=20.0, cut_frames=None, players_history=None, raw_ball_df=None, **kwargs):
+def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frames=9, max_jump_px=300.0, static_px=20.0, cut_frames=None, players_history=None, **kwargs):
 
     # Inicialización
     if isinstance(ball_history, pd.DataFrame):
@@ -469,10 +452,9 @@ def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frame
         if 'frame' not in df_ball.columns and df_ball.index.name == 'frame': df_ball = df_ball.reset_index()
             
     df_iter = ensure_centers(df_ball)
-    raw_ball_df = ensure_centers(raw_ball_df)
     
-    # MOG2 Leak Catcher
-    df_iter = apply_mog2_leak_catcher(df_iter, raw_ball_df)
+    # Filtro de Densidad Espacial (Heatmap)
+    df_iter = apply_spatial_density_filter(df_iter)
 
     # Paso 1: Enlazado rápido por distancia
     threads_f1 = link_tracks_fast(df_iter, R_max=50.0)
@@ -490,58 +472,4 @@ def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frame
     final_list = interpolate_ball(df_full, max_gap_frames=max_gap_frames, cuts=cut_frames)
     return final_list
 
-    
-
-def remove_false_detections_ball(ball_df, video_path, mog_history=200, mog_varThreshold=50, mog_ratio=0.17):
-    if ball_df.empty: return ball_df
-
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error abriendo el video para limpiar la pelota: {video_path}")
-        return ball_df
-
-    bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=mog_history, varThreshold=mog_varThreshold, detectShadows=False)
-    valid_dataframes = []
-    df_grouped = ball_df.groupby('frame')
-    frame_idx = 1
-    
-    while cap.isOpened():
-        if frame_idx not in df_grouped.groups and frame_idx % 30 != 0:
-            ret = cap.grab()
-            if not ret: break
-            frame_idx += 1
-            continue
-
-        ret, frame = cap.read()
-        if not ret: break
-            
-        frame_small = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
-        fgmask = bg_subtractor.apply(frame_small)
-        
-        if frame_idx in df_grouped.groups:
-            frame_detections = df_grouped.get_group(frame_idx).copy().dropna(subset=['x_min'])
-            if not frame_detections.empty:
-                height, width = fgmask.shape[:2]
-                frame_detections['x_min_s'] = (frame_detections['x_min'] // 2).clip(lower=0).astype(int)
-                frame_detections['y_min_s'] = (frame_detections['y_min'] // 2).clip(lower=0).astype(int)
-                frame_detections['x_max_s'] = (frame_detections['x_max'] // 2).clip(upper=width).astype(int)
-                frame_detections['y_max_s'] = (frame_detections['y_max'] // 2).clip(upper=height).astype(int)
-
-                valid_indices = []
-                for row in frame_detections.itertuples():
-                    window = fgmask[row.y_min_s:row.y_max_s, row.x_min_s:row.x_max_s]                    
-                    if window.size > 0:
-                        window_clean = cv2.medianBlur(window, 5) if window.shape[0] >= 5 and window.shape[1] >= 5 else window 
-                        if (cv2.countNonZero(window_clean) / window.size) > mog_ratio:
-                            valid_indices.append(row.Index)
-
-                if valid_indices:
-                    valid_dataframes.append(frame_detections.loc[valid_indices, ball_df.columns])
-                
-        frame_idx += 1
-    cap.release()
-    
-    if not valid_dataframes:
-        return pd.DataFrame(columns=ball_df.columns)
-        
-    return pd.concat(valid_dataframes).sort_values('frame').reset_index(drop=True)
+    

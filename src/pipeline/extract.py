@@ -4,6 +4,7 @@ import cv2
 import time
 import numpy as np
 import config
+import base64
 from queue import Queue
 from threading import Thread
 from tqdm import tqdm
@@ -62,6 +63,10 @@ def extract(url_video):
             first_frame = batch_frames[0]
             keypoints_court.get_delimited_court(first_frame)
             keypoints_court.extract_homography()
+            
+            _, buffer = cv2.imencode('.jpg', first_frame)
+            first_frame_b64 = base64.b64encode(buffer).decode('utf-8')
+            
             is_first_frame = False
 
         while len(batch_frames) > 0 and len(batch_frames) < BATCH_SIZE:
@@ -69,7 +74,7 @@ def extract(url_video):
             batch_idx.append(-2)
         
         result_players = make_track_batch(player_model, batch_frames, batch_size=BATCH_SIZE)
-        result_ball = make_prediction_batch(ball_model, batch_frames, conf_grade=0.01, batch_size=BATCH_SIZE)
+        result_ball = make_prediction_batch(ball_model, batch_frames, conf_grade=0.2, batch_size=BATCH_SIZE)
 
         for i in range(len(batch_frames)):
 
@@ -105,7 +110,8 @@ def extract(url_video):
     detection = {
         'ball': ball_history,
         'players': players_history,
-        'court': court_information
+        'court': court_information,
+        'first_frame': first_frame_b64
     }   
 
     os.makedirs(config.RAW_JSON_FOLDER_PATH, exist_ok=True)

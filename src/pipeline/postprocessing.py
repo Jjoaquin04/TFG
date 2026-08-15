@@ -1,14 +1,15 @@
 import pandas as pd
 import json
+import base64
 import numpy as np
 import os
 import cv2
 import config
 from tqdm import tqdm
 from core import EventTracker, StrokeClassifier, KeypointsCourt
-from utils import remove_static_players, remove_false_detections_players, remove_false_detections_ball, filter_ball_outliers, get_ground_contact_point, normalice_keypoints, apply_homography, calculate_players_centers, reorder_yolo_ids
+from utils import remove_static_players, remove_false_detections_players, filter_ball_outliers, get_ground_contact_point, normalice_keypoints, apply_homography, calculate_players_centers, reorder_yolo_ids
 
-def postprocessing(raw_json_path: str, video_path: str):
+def postprocessing(raw_json_path: str):
 
     raw_path = raw_json_path
     file_name = os.path.basename(raw_path)
@@ -28,20 +29,20 @@ def postprocessing(raw_json_path: str, video_path: str):
         court_corners = np.array(court_info[0], dtype=np.float32)
         
         # 0. Fase de ajuste interactivo de la pista
-        print("\nAbriendo ventana de ajuste interactivo de la pista...")
-        kc = KeypointsCourt()
-        kc.keypoints = court_corners
-        kc.extract_rest_of_kpoints()
-        
-        cap = cv2.VideoCapture(video_path)
-        ret, frame = cap.read()
-        cap.release()
-        
-        if ret:
+        if 'first_frame' in data:
+            print("\nAbriendo ventana de ajuste interactivo de la pista...")
+            kc = KeypointsCourt()
+            kc.keypoints = court_corners
+            kc.extract_rest_of_kpoints()
+            
+            img_data = base64.b64decode(data['first_frame'])
+            np_arr = np.frombuffer(img_data, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            
             full_keypoints, H = kc.interactive_adjustment(frame)
             
             # Actualizar court_info en data
-            data['court'] = [full_keypoints.tolist(), H.tolist()]       
+            data['court'] = [full_keypoints.tolist(), H.tolist()]
 
     print("\nIniciando fases de post-procesamiento...")
     pbar = tqdm(total=4, desc="Progreso General")
@@ -54,7 +55,7 @@ def postprocessing(raw_json_path: str, video_path: str):
     # 2. Fase de Limpieza (Pelota, con conocimiento de los cortes)
     pbar.set_postfix_str("Limpieza de Datos")
     cut_frames = data.get('cut_frames', [])
-    data = _clean_data(data, H, video_path, cut_frames)
+    data = _clean_data(data, H, cut_frames)
     
     # 2.5 Aplicar homografía a la pelota ya limpia
     if 'ball' in data and data['ball'] and H is not None:
@@ -115,7 +116,7 @@ def postprocessing(raw_json_path: str, video_path: str):
     print(f"Interpolation finished! Saved cleaned data to {interp_path}")
     return interp_path
     
-def _clean_data(data, H, video_path, cut_frames):
+def _clean_data(data, H, cut_frames):
     ball_history = data.get('ball', [])
     
     if ball_history:
@@ -148,23 +149,8 @@ def _clean_data(data, H, video_path, cut_frames):
                 
         ball_df_raw = pd.DataFrame(flat_ball_history)
         if not ball_df_raw.empty:
-                # Lógica de caché MOG2
-                video_name = os.path.splitext(os.path.basename(video_path))[0]
-                cache_file = os.path.join("data", "outputs", "json", "raw_json", f"{video_name}_mog2_cache.json")
-                
-                if os.path.exists(cache_file):
-                    print(f"Cargando caché de MOG2 desde {cache_file}...")
-                    with open(cache_file, 'r') as f:
-                        cached_data = json.load(f)
-                    ball_df_mog2 = pd.DataFrame(cached_data)
-                else:
-                    ball_df_mog2 = remove_false_detections_ball(ball_df_raw.copy(), video_path)
-                    print(f"Guardando caché de MOG2 en {cache_file}...")
-                    records = ball_df_mog2.where(pd.notnull(ball_df_mog2), None).to_dict(orient='records')
-                    with open(cache_file, 'w') as f:
-                        json.dump(records, f)
                 players_history = data.get('players', [])
-                refined_list = filter_ball_outliers(ball_df_mog2, cut_frames=cut_frames, players_history=players_history, raw_ball_df=ball_df_raw)
+                refined_list = filter_ball_outliers(ball_df_raw, cut_frames=cut_frames, players_history=players_history)
                 data['ball'] = refined_list
     return data
 
