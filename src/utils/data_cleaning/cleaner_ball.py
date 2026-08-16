@@ -56,7 +56,7 @@ def interpolate_ball(ball_df, max_gap_frames=15, cuts=None):
 # ==========================================
 # CAPAS DE FILTRADO Y REFINAMIENTO (PIPELINE)
 # ==========================================
-def apply_spatial_density_filter(df_iter, grid_size=20, max_detections=15):
+def apply_spatial_density_filter(df_iter, grid_size=10, max_detections=45):
     if df_iter is None or df_iter.empty:
         return df_iter
         
