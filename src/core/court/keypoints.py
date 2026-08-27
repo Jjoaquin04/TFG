@@ -28,11 +28,11 @@ class KeypointsCourt:
             if not contours:
                 continue
                 
-            #Elegir el de mayor área
+            # Elegir el de mayor área
             contour = max(contours, key=cv2.contourArea)
             area = cv2.contourArea(contour)
             
-            #Filtrar manchas pequeñas 
+            # Filtrar manchas pequeñas 
             area = cv2.contourArea(contour)
             if area < 5000:
                 continue
@@ -55,7 +55,7 @@ class KeypointsCourt:
         bl = self._get_intersection(court_lines[0], court_lines[3])
         br = self._get_intersection(court_lines[1], court_lines[3])
         
-        # --- ALINEACIÓN HORIZONTAL DE LAS ESQUINAS DE LA MOQUETA ---
+        # Alineación horizontal de las esquinas de la moqueta
         if tl is not None and tr is not None:
             best_y_top = min(tl[1], tr[1])
             tl = (tl[0], best_y_top)
@@ -87,9 +87,6 @@ class KeypointsCourt:
             
         self.H, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
         self.inverse_H = np.linalg.inv(self.H)
-
-    def get_court_information(self):
-        return [self.keypoints, self.H]
 
     def adjust_points_mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:

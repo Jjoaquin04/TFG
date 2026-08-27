@@ -48,16 +48,16 @@ def obtain_court_lines(img, best_contour):
             rho, theta = line[0]
             angle_deg = np.degrees(theta)
             
-            #Clasificación geométrica
+            # Clasificación geométrica
             if 10 < angle_deg < 80:
                 # Pared Izquierda
                 if best_left is None: best_left = (rho, theta)
             elif 100 < angle_deg < 170:
-                #Pared Derecha
+                # Pared Derecha
                 if best_right is None: best_right = (rho, theta)
             elif 80 <= angle_deg <= 100:
-                #Fondo o Red/Inferior
-                #Obtenemos el punto de corte de la recta infinita con el borde izq de la pantalla
+                # Fondo o Red/Inferior
+                # Obtenemos el punto de corte de la recta infinita con el borde izq de la pantalla
                 y_intercept = rho / np.sin(theta)
                 if y_intercept < cy:
                     if best_top is None: best_top = (rho, theta)
@@ -105,7 +105,7 @@ def draw_comet_tail(frame, pt1, pt2, color, num_points):
     
     for i in range(num_points):
         ratio = i / (num_points - 1)
-        # como crede el radio
+        # Control del crecimiento del radio
         radius = int(2 + 2 * ratio)
         
         # Interpolar efecto de desvanecimiento hacia la cola

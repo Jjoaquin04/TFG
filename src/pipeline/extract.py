@@ -62,7 +62,6 @@ def extract(url_video):
         if is_first_frame:
             first_frame = batch_frames[0]
             keypoints_court.get_delimited_court(first_frame)
-            keypoints_court.extract_homography()
             
             _, buffer = cv2.imencode('.jpg', first_frame)
             first_frame_b64 = base64.b64encode(buffer).decode('utf-8')
@@ -105,8 +104,8 @@ def extract(url_video):
     cap.release()
     ball_history = ball_tracker.get_ball_history()
     players_history = player_tracker.get_players_history()
-    court_information = keypoints_court.get_court_information()
-
+    court_information = keypoints_court.keypoints.tolist()
+    
     detection = {
         'ball': ball_history,
         'players': players_history,

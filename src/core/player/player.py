@@ -43,7 +43,7 @@ class Player:
                     pts = np.array([left_shoulder, right_soulder, left_hip, right_hip],dtype=np.int32 )
                     pts = pts.reshape(-1,1,2)
 
-                    #Mascara negra del tamaño del frame
+                    # Mascara negra del tamaño del frame
                     mask = np.zeros(frame.shape[:2], dtype=np.uint8)
                     cv2.fillPoly(mask, [pts], 255)
 
@@ -66,7 +66,7 @@ class Player:
             bbx_w = x2 - x1
             bbx_h = y2 - y1
     
-            #Coger solo el centro-pecho
+            # Coger solo el centro-pecho
             crop_x1 = int(x1 + bbx_w * 0.2)
             crop_x2 = int(x1 + bbx_w * 0.8)
             crop_y1 = int(y1 + bbx_h * 0.1)
