@@ -1,4 +1,4 @@
-# Rutas de archivos, modelos, estructuras y clase cte
+# Rutas de archivos, modelos, estructuras y clase 
 import json
 import numpy as np
 

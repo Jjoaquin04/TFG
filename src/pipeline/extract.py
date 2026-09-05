@@ -32,7 +32,7 @@ def extract(url_video):
     frames_thread = Thread(target=video_reader, args=(cap, queue))
     frames_thread.start()
     # ───────────────────────────────────────────────────────
-
+    
     is_first_frame = True
     video_ended = False
     

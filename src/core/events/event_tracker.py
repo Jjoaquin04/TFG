@@ -12,9 +12,9 @@ class EventTracker:
         self.last_event_frame = -999
 
     def track(self, ball_dict, player_history, cut_frames=[]):
-        # --- CLuster NMS ---
+        # Agrupación de detecciones cercanas (Cluster NMS)
         candidate_cluster = []
-        CLUSTER_MAX_GAP = 7  # Frames máximos sin meter nada en el cluster
+        CLUSTER_MAX_GAP = 7  # Máximo de frames sin añadir elementos al cluster
 
         last_ball = None
         last_valid_frame = None
@@ -52,22 +52,22 @@ class EventTracker:
                         candidate_cluster.clear()
                     else:
                         self._process_cluster(candidate_cluster, cut_frames)
-                        
+
                     possible_event, new_angle = direction_detector.detect_direction_change(current_ball, last_ball, last_angle)
                     last_angle = new_angle
                     if possible_event:
                         closest_player, nearest_distance = self._closest_player(current_ball, ball['frame'], player_history)
                         
-                        #Comparar si la distancia pre oclusion es menor o igual a la de despues de la oclusion
+                        # Comparamos si la distancia antes de la oclusión es menor o igual a la de después
                         if pre_dist <= nearest_distance:
-                            best_player = pre_player #El jugador es el de antes de la oclusion
+                            best_player = pre_player # El jugador es el de antes de la oclusión
                             best_dist = pre_dist
                         else:
-                            best_player = closest_player #El jugador es el de después de la oclusion
+                            best_player = closest_player # El jugador es el de después de la oclusión
                             best_dist = nearest_distance
 
                         if best_dist < 300.0:
-                            impact_frame_estimated = last_valid_frame + (none_count // 2) #Frame de impacto estimado la mitad de la oclusion
+                            impact_frame_estimated = last_valid_frame + (none_count // 2) # Frame de impacto estimado (mitad de la oclusión)
                             
                             # Obtener coordenadas de origen desde el jugador
                             player_record = player_history.get(best_player, {}).get(str(impact_frame_estimated))
@@ -85,7 +85,7 @@ class EventTracker:
                                 self.history.append(event)
                                 self.last_event_frame = impact_frame_estimated
             else:
-                #Flujo normal, posible golpeo sin oclusion
+                # Flujo normal, posible golpeo sin oclusión
                 possible_event, new_angle = direction_detector.detect_direction_change(current_ball, last_ball, last_angle)
                 last_angle = new_angle
                 if possible_event: 
@@ -107,10 +107,10 @@ class EventTracker:
             last_ball = current_ball
             last_valid_frame = ball['frame']
             
-        #Ejecutar el cluster si existe cuando acabamos
+        # Ejecutar el cluster remanente si existe al terminar
         self._process_cluster(candidate_cluster, cut_frames)
 
-        # --- ASIGNAR DESTINY CORD ---
+        # Asignar coordenadas de destino
         for i in range(len(self.history)):
             current_event = self.history[i]
             if i < len(self.history) - 1:
@@ -130,7 +130,7 @@ class EventTracker:
         if not candidate_cluster:
             return
             
-        #Penalizacion con 1.2px por frame con respecto al primero del cluster
+        # Penalización temporal: 1.2px por frame de retraso respecto al primero del cluster
         start_frame = candidate_cluster[0]['frame']
         for c in candidate_cluster:
             frames_late = c['frame'] - start_frame
@@ -148,7 +148,7 @@ class EventTracker:
                 last_event = self.history[-1]
                 last_hitter = int(float(last_event.player_id))
                 
-                # Check for cuts between last event and this candidate
+                # Revisar si hay un corte entre el ultimo evento y este candidato
                 has_cut = False
                 for cut in cut_frames:
                     if last_event.impact_frame < cut <= candidate['frame']:
@@ -174,7 +174,7 @@ class EventTracker:
                                 candidate_cluster.clear()
                                 return
                             else:
-                                # No hay corte, y es el mismo jugador, pero pasaron mas de 40 frames
+                                # No hay corte, y es el mismo jugador, pero pasaron más de 40 frames
                                 is_valid = False
                         else:
                             # Compañero

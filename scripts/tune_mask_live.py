@@ -12,11 +12,11 @@ def main():
         print("No se pudo cargar la imagen:", img_path)
         sys.exit(1)
         
-    #Inicializamos con valores base (actualmente son los valores para la mask 1 en el dict de config)
+    # Actualmente son los valores para la mask 1 en el dict de config
     h_min, s_min, v_min = 111, 53, 59
     h_max, s_max, v_max = 141, 153, 159
 
-    #Crear ventana con controles deslizantes
+    # Ventana con controles deslizantes
     cv2.namedWindow('Tuning Mask', cv2.WINDOW_NORMAL)
     cv2.createTrackbar('H_min', 'Tuning Mask', h_min, 179, nothing)
     cv2.createTrackbar('S_min', 'Tuning Mask', s_min, 255, nothing)
@@ -51,10 +51,9 @@ def main():
         
         mask = cv2.inRange(hsv, lower, upper)
         
-        #Mascara aplicada a la imagen original
+        # Mascara aplicada a la imagen original
         res = cv2.bitwise_and(img, img, mask=mask)
         
-        #Juntamos las imagenes para hacer ver comparativa
         mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         stacked = np.hstack((mask_bgr, res))
         

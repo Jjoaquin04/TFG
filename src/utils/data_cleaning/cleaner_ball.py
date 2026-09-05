@@ -10,7 +10,7 @@ from scipy.optimize import linear_sum_assignment
 
 
 def ensure_centers(df):
-    #Comprobar que el dataframe tiene el center_x y center_y 
+    # Comprobar que el dataframe tiene el center_x y center_y 
     if df is not None and not df.empty:
         df_copy = df.copy()
         if 'center_x' not in df_copy.columns:
@@ -27,7 +27,7 @@ def group_nan(ball_frame: pd.DataFrame):
     len_map = nan_groups.map(len_consecutive_nan).fillna(0)
     return len_map
 
-def interpolate_ball(ball_df, max_gap_frames=15, cuts=None):
+def interpolate_ball(ball_df, max_gap_frames, cuts=None):
     if cuts is None:
         cuts = []
     df_copy = ball_df.copy()
@@ -53,9 +53,6 @@ def interpolate_ball(ball_df, max_gap_frames=15, cuts=None):
     df_ball_interp.loc[is_big, ['x_min', 'y_min', 'x_max', 'y_max','center_x', 'center_y']] = None
     return df_ball_interp.reset_index().to_dict(orient='records')
 
-# ==========================================
-# CAPAS DE FILTRADO Y REFINAMIENTO (PIPELINE)
-# ==========================================
 def apply_spatial_density_filter(df_iter, grid_size=10, max_detections=45):
     if df_iter is None or df_iter.empty:
         return df_iter
@@ -86,16 +83,9 @@ def apply_spatial_density_filter(df_iter, grid_size=10, max_detections=45):
             
     return df_iter
 
-# ==========================================
-# FUNCIONES PRINCIPALES EXPORTADAS
-# ==========================================
-
 def apply_initial_filter(threads, df_iter, video_path):
-    """
-    Fase 2: Purga rápida de mini-hilos (Tribunal Inferior).
-    Elimina hilos <= 2 frames, hilos estáticos (< 20px de movimiento), 
-    y hilos totalmente fuera del polígono expandido de la pista.
-    """
+    # Eliminamos falsos positivos y trayectorias muy cortas en la parte inferior de la pista
+    # y también descartamos los que quedan totalmente fuera del polígono de la pista.
     survivors = []
     
     halo_polygon = None
@@ -123,7 +113,7 @@ def apply_initial_filter(threads, df_iter, video_path):
         pts = thread['positions']
         pts_arr = np.array(pts)
             
-        # 1. Filtro Espacial (Halo)
+        # Filtrado espacial alrededor de la pista
         if halo_polygon is not None:
             all_outside = True
             for p in pts:
@@ -133,8 +123,7 @@ def apply_initial_filter(threads, df_iter, video_path):
             if all_outside:
                 continue
                 
-        # 2. Filtro Estático (Sólo aplicable a hilos que han vivido lo suficiente)
-        # Sdura más de 3 frames y apenas se ha movido 20px, es un objeto estático (logo, reflejo).
+        # Filtro estático: si dura más de 3 frames y apenas se mueve, puede ser un objeto estático (logo, reflejo).
         if len(pts) > 3:
             dx = np.max(pts_arr[:, 0]) - np.min(pts_arr[:, 0])
             dy = np.max(pts_arr[:, 1]) - np.min(pts_arr[:, 1])
@@ -147,9 +136,7 @@ def apply_initial_filter(threads, df_iter, video_path):
     return survivors
 
 def link_tracklets_phase3(threads, df_iter):
-    """
-    Fase 3: Unión de Hilos (Tracklet Linking) para saltar oclusiones.
-    """
+    # Unimos hilos de trayectoria que han sido separados por oclusiones cortas.
     
     if len(threads) <= 1:
         return threads
@@ -179,6 +166,7 @@ def link_tracklets_phase3(threads, df_iter):
             
             A = threads[i]
             B = threads[j]
+            # Pipeline de filtrado
             dt = B['start_frame'] - A['end_frame']
             
             if dt <= 0 or dt > 5:
@@ -366,8 +354,7 @@ def apply_final_filter(threads, df_iter):
 
 
 def link_tracks_fast(df_iter, R_max=50.0):
-    """Fase 1: Enlazado Vectorizado (Cero Memoria)."""
-
+    # Enlazado vectorizado eficiente para unir detecciones contiguas.
     grouped_frame = df_iter.groupby('frame')
     thread_alive = []
     thread_finished = []
@@ -391,7 +378,7 @@ def link_tracks_fast(df_iter, R_max=50.0):
                 next_thread_id += 1
             continue
 
-        # 1. Predicción cinemática
+        # Predicción de la siguiente posición
         posiciones_esperadas = np.zeros((len(thread_alive), 2))
         for i, thread in enumerate(thread_alive):
             if len(thread['positions']) == 1:
@@ -402,13 +389,13 @@ def link_tracks_fast(df_iter, R_max=50.0):
                 direction_vector = current_position - previous_position
                 posiciones_esperadas[i] = current_position + direction_vector
 
-        # 2. Matriz de distancias
+        # Matriz de distancias
         dist_matrix = cdist(posiciones_esperadas, new_detections)
 
-        # 3. Asignación óptima (Húngaro)
+        # Asignación óptima (Algoritmo Húngaro)
         thread_rows, columnas_det = linear_sum_assignment(dist_matrix)
 
-        # 4. Ruptura estricta y nacimientos
+        # Ruptura estricta y nacimientos
         surviving_threads = []
         detecciones_usadas = set()
 
@@ -456,20 +443,20 @@ def filter_ball_outliers(ball_history, max_pixels_per_frame=480.0, max_gap_frame
     # Filtro de Densidad Espacial (Heatmap)
     df_iter = apply_spatial_density_filter(df_iter)
 
-    # Paso 1: Enlazado rápido por distancia
+    # Enlazado rápido por distancia
     threads_f1 = link_tracks_fast(df_iter, R_max=50.0)
 
-    # Paso 2: Filtrado rápido de ruido
+    # Filtrado rápido de ruido inicial
     video_path = kwargs.get('video_path')
     threads_f2 = apply_initial_filter(threads_f1, df_iter, video_path)
 
-    # Paso 3: Enlazado de tramos
+    # Unión de tramos cortados por oclusiones
     threads_f3 = link_tracklets_phase3(threads_f2, df_iter)
 
-    # Paso 4: Extracción de trayectoria final
+    # Extracción y limpieza de la trayectoria final
     df_full, threads_f4, valid_tracks, death_causes = apply_final_filter(threads_f3, df_iter)
         
     final_list = interpolate_ball(df_full, max_gap_frames=max_gap_frames, cuts=cut_frames)
     return final_list
 
-    
+    

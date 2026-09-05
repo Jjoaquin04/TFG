@@ -52,7 +52,7 @@ def is_service(player_keypoints_window, impact_keypoints, racket_hand, event, pr
         if not is_same_player:
             return [0.0, 'service', 0.0]
             
-        # Ajustamos los pesos de los cortes para que no rompan la lógica
+        # Ajuste de los pesos de los cortes
         if is_after_cut:
             score = 2.0 # El primer golpe tras un corte de cámara (y detrás de la línea) es siempre saque
         elif is_second_serve:

@@ -40,7 +40,7 @@ def extract_color_mask(img1_path, img2_path, img3_path, img4_path):
         "img3": img3, 
         "img4": img4
     }
-    #Actualizacion: para la pista morada se ha usado el file scripts/tune_mask_live.py para mejorar su máscara
+    # Actualizacion: para la pista morada se ha usado el file scripts/tune_mask_live.py para mejorar su máscara
     h_margin = 15
     s_margin = 50
     v_margin = 50
@@ -59,10 +59,10 @@ def extract_color_mask(img1_path, img2_path, img3_path, img4_path):
             pixles_window = np.reshape(frame_window, (-1, 3))
             pixels.append(pixles_window)
     
-        #Trnasformamos las listas para cada window en una sola lista
+        # Trnasformamos las listas para cada window en una sola lista
         all_pixels = np.vstack(pixels)
         
-        median = np.median(all_pixels, axis=0) #axis=0 para que lo calcule columna por columna
+        median = np.median(all_pixels, axis=0) # axis=0 para que lo calcule columna por columna
 
         median_hue = median[0]
         median_saturation = median[1]

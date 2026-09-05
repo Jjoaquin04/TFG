@@ -18,7 +18,7 @@ class MiniCourt():
         self.rectangle_white = np.ones((self.rectangle_height, self.rectangle_width, 3), dtype=np.uint8) * 255
         self.mini_homography = self._build_mini_homography()
         
-        # Invertimos la homografía para mapear de coordanadas reales a coordenadas en pixeles del mini court
+        # Invertimos la homografía para mapear de coordenadas reales a coordenadas en pixeles del mini court
         self.H_inv = np.linalg.inv(self.mini_homography)
         self.mini_court_points = cv2.perspectiveTransform(config.points_court, self.H_inv)
     
@@ -58,13 +58,13 @@ class MiniCourt():
         self.end_y = int(self.start_y + self.rectangle_height)
 
     def draw_court(self, frame, player_positions, trajectory_line):
-        #1. Dibujar el fondo del minimapa (margen exterior)
+        # Dibujar el fondo del minimapa (margen exterior)
         rectangle = frame[self.start_y:self.end_y, self.start_x:self.end_x]
         res = cv2.addWeighted(rectangle, 0.5, self.rectangle_white, 0.5, 0) 
         frame[self.start_y:self.end_y, self.start_x:self.end_x] = res
 
         for position in player_positions:
-            #Aplicar homografía inversa para obtener la posición en el mini court
+            # Aplicar homografía inversa para obtener la posición en el mini court
             point_array = np.array([[position]], dtype=np.float32)
             mini_player_position = cv2.perspectiveTransform(point_array, self.H_inv)
         
