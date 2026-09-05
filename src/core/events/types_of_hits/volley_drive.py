@@ -41,7 +41,7 @@ def is_drive_or_volley(event, next_event, ball_history, impact_keypoints, racket
                 hip_y = impact_keypoints[hip_idx][1]
                 if wrist_y != 0.0 and hip_y != 0.0:
                     # Y negativo es hacia arriba. Si la muñeca está por encima de la cadera (menor valor)
-                    if wrist_y < hip_y - 10.0:
+                    if wrist_y < hip_y - 0.08:
                         wrist_high = True
 
         if event.origin_cord is not None:

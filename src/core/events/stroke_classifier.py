@@ -21,7 +21,7 @@ class StrokeClassifier:
             prev_event = events_history[i-1] if i > 0 else None
             next_event = events_history[i+1] if i + 1 < len(events_history) else None
             
-            #Validar que prev_event y next_event pertenecen al mismo punto (no hay corte entre medias)
+            # Validar que prev_event y next_event pertenecen al mismo punto (no hay corte entre medias)
             if prev_event is not None:
                 for cut in cut_frames:
                     if prev_event.impact_frame < cut <= impact_frame:
@@ -49,7 +49,7 @@ class StrokeClassifier:
                     
                     scores = []
                     
-                    #Le pasamos el evento anterior para comprobar si es un doble saque
+                    # Le pasamos el evento anterior para comprobar si es un doble saque
                     prev_event_raw = events_history[i-1] if i > 0 else None
                     service_score = is_service(player_keypoints_window, impact_keypoints, racket_hand, event, prev_event_raw, players_history, impact_frame, cut_frames, i == 0)
                     if service_score[0] >= 2.0:
@@ -62,7 +62,7 @@ class StrokeClassifier:
                     scores.append(is_drive_or_volley(event, next_event, ball_history, impact_keypoints, racket_hand))
                     
                     # score_info is [score, event_type, tie_breaker_score]
-                    #Ordenar por score descendente y en caso de empate por tie_breaker_score descendente
+                    # Ordenar por score descendente y en caso de empate por tie_breaker_score descendente
                     scores.sort(key=lambda x: (x[0], x[2]), reverse=True)
                     
                     best_match = scores[0]

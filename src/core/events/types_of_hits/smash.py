@@ -61,8 +61,8 @@ def is_smash(player_keypoints_window, impact_keypoints, racket_hand, event, next
                 wrist_y = impact_keypoints[wrist_idx][1]
                 shoulder_y = impact_keypoints[shoulder_idx][1]
                 
-                # Ajuste: el impacto alto acepta wrist_y <= shoulder_y + 15.0
-                high_threshold = shoulder_y + 15.0
+                #el impacto alto acepta wrist_y <= shoulder_y + 0.11
+                high_threshold = shoulder_y + 0.11
                 diff = high_threshold - wrist_y # Cuanto menor es wrist_y, mayor es diff (mejor)
                 
                 if diff > 0:

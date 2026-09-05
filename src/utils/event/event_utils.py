@@ -30,8 +30,8 @@ def impact_high(norm_keypoints, racket_hand):
         shoulder_y = norm_keypoints[shoulder_idx][1]
         
         # El impacto es alto si la muñeca está por encima del hombro o muy cerca
-        # Recordar que Y negativo es hacia arriba. Así que wrist_y <= shoulder_y + 15.0
-        return wrist_y <= shoulder_y + 15.0
+        # Recordar que Y negativo es hacia arriba. Así que wrist_y <= shoulder_y + 0.11
+        return wrist_y <= shoulder_y + 0.11
 
 def impact_low_hip(norm_keypoints, racket_hand):
         wrist_idx = 9 if racket_hand == 'left' else 10
@@ -39,7 +39,7 @@ def impact_low_hip(norm_keypoints, racket_hand):
             return True # Si está ocluido, asumimos que sí (o no lo penalizamos)
         
         wrist_y = norm_keypoints[wrist_idx][1]
-        return wrist_y > -30.0
+        return wrist_y > -0.23
 
 def check_soulder_assembly(norm_keypoints_window, racket_hand):
         wrist_idx = 9 if racket_hand == 'left' else 10
