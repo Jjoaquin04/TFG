@@ -24,40 +24,44 @@ def postprocessing(raw_json_path: str):
         return None
         
     court_info = data.get('court', [])
-    if len(court_info) > 1:
-        H = np.array(court_info[1], dtype=np.float32)
-        court_corners = np.array(court_info[0], dtype=np.float32)
+    if len(court_info) > 0:
+        court_corners = np.array(court_info, dtype=np.float32)
+        print
+            
+        kc = KeypointsCourt()
+        kc.keypoints = court_corners
+        # Calcular la H internamente para las 4 esquinas
+        kc.extract_rest_of_kpoints()
         
-        # 0. Fase de ajuste interactivo de la pista
+        # Fase de ajuste interactivo de la pista
         if 'first_frame' in data:
             print("\nAbriendo ventana de ajuste interactivo de la pista...")
-            kc = KeypointsCourt()
-            kc.keypoints = court_corners
-            kc.extract_rest_of_kpoints()
-            
             img_data = base64.b64decode(data['first_frame'])
             np_arr = np.frombuffer(img_data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
             full_keypoints, H = kc.interactive_adjustment(frame)
+        else:
+            full_keypoints = kc.keypoints
+            H = kc.H
             
-            # Actualizar court_info en data
-            data['court'] = [full_keypoints.tolist(), H.tolist()]
+        # Actualizar court_info en data con el formato [keypoints, H] que esperan las demás funciones
+        data['court'] = [full_keypoints.tolist(), H.tolist()]
 
     print("\nIniciando fases de post-procesamiento...")
     pbar = tqdm(total=4, desc="Progreso General")
 
-    # 1. Fase de Extracción de Datos (Jugadores y cortes de vídeo)
+    # Fase de extracción de datos (jugadores y cortes de vídeo)
     pbar.set_postfix_str("Extracción de Datos y Cortes")
     data = _extract_features(data, H)
     pbar.update(1)
     
-    # 2. Fase de Limpieza (Pelota, con conocimiento de los cortes)
+    # Fase de limpieza (pelota, con conocimiento de los cortes)
     pbar.set_postfix_str("Limpieza de Datos")
     cut_frames = data.get('cut_frames', [])
     data = _clean_data(data, H, cut_frames)
     
-    # 2.5 Aplicar homografía a la pelota ya limpia
+    # Aplicar homografía a la pelota ya limpia
     if 'ball' in data and data['ball'] and H is not None:
         ball_df = pd.DataFrame(data['ball'])
         ball_df = apply_homography(ball_df, H, 'center_x', 'center_y')
@@ -65,7 +69,7 @@ def postprocessing(raw_json_path: str):
     
     pbar.update(1)
     
-    # 3. Clasificación de Eventos
+    # Clasificación de eventos
     pbar.set_postfix_str("Seguimiento de Eventos")
     interpolated_ball_list = data['ball']
     players_history = data['players']
@@ -180,7 +184,7 @@ def _extract_features(data, H):
     data['cut_frames'] = cut_frames
         
 
-    #Volver a meter en un dict
+    # Convertir los datos a un diccionario estructurado
     players_df = players_df.replace({np.nan: None})
     players_history = {}
     for player_id, p_df in players_df.groupby('player_id'):

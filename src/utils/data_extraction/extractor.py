@@ -35,12 +35,8 @@ def apply_homography(player_df: pd.DataFrame, homography_matrix, x_col, y_col):
     return player_df
 
 def get_ground_contact_point(player_df: pd.DataFrame):
-    """
-    Estrategia:
-        1. Promedio de ambos tobillos si ambos son válidos
-        2. El tobillo disponible si solo hay uno
-        3. Centro inferior del BBX como último recurso
-    """
+    # Calculamos el punto de contacto usando el promedio de los tobillos si están disponibles.
+    # Si falta uno, usamos el válido, y como última opción, la base de la caja delimitadora.
     left_ankle_column = player_df['keypoints'].str[15]
     right_ankle_column = player_df['keypoints'].str[16]
 
@@ -52,7 +48,6 @@ def get_ground_contact_point(player_df: pd.DataFrame):
     right_ankle_y = right_ankle_column.str[1]
     right_ankle_conf = right_ankle_column.str[2]
 
-    #Preparar la imformacion para los np.where
     CONF_THRESHOLD = 0.5
     cond_left_ankle = left_ankle_conf > CONF_THRESHOLD
     cond_right_ankle = right_ankle_conf > CONF_THRESHOLD
@@ -94,9 +89,12 @@ def normalice_keypoints(player_df: pd.DataFrame):
     center_hips_x = (left_hip_x + right_hip_x) / 2.0
     center_hips_y = (left_hip_y + right_hip_y) / 2.0
     
+    bbx_w = player_df['x_max'] - player_df['x_min']
+    bbx_h = player_df['y_max'] - player_df['y_min']
+    
     player_df['norm_keypoints'] = [
-        [[kp[0] - center_x ,kp[1] - center_y] for kp in kps]
-        for kps, center_x, center_y in zip(player_df['keypoints'], center_hips_x, center_hips_y)
+        [[(kp[0] - center_x) / w, (kp[1] - center_y) / h] for kp in kps]
+        for kps, center_x, center_y, w, h in zip(player_df['keypoints'], center_hips_x, center_hips_y, bbx_w, bbx_h)
     ]
 
     return player_df
@@ -116,7 +114,7 @@ def reorder_yolo_ids(players_df):
         valid_frame = cut_frame
         players_cut = players_df[players_df['frame'] == valid_frame]
         
-        #Si en el momento exacto del nuevo ID están los 4 jugadores, lo consideramos un corte limpio
+        # Si en el momento exacto del nuevo ID están los 4 jugadores, lo consideramos un corte limpio
         if len(players_cut) == 4:
             cut_frames.append(cut_frame)
         while len(players_cut) != 4 and valid_frame <= players_df['frame'].max():
@@ -126,7 +124,7 @@ def reorder_yolo_ids(players_df):
         if len(players_cut) == 4:
             _reasing_ids(players_cut, first_bottom_footprint, role)
 
-    players_df['player_id'] = players_df['player_id'].map(role).fillna(players_df['player_id'])
+    players_df['player_id'] = players_df['player_id'].map(role).fillna(players_df['player_id']).astype(int)
     return players_df, cut_frames
 
 def _obtain_four_ids(players_df: pd.DataFrame):
@@ -185,10 +183,13 @@ def _order_four_players(four_players):
     variance_y_top = abs(top_pair.iloc[0]['contact_y'] - top_pair.iloc[1]['contact_y'])
     variance_y_bottom = abs(bottom_pair.iloc[0]['contact_y'] - bottom_pair.iloc[1]['contact_y'])
 
+    mean_x = four_players['contact_x'].mean()
+
     if variance_y_top > variance_y_bottom:
         delta_x_serve_pair = abs(top_pair.iloc[0]['contact_x'] - top_pair.iloc[1]['contact_x'])
         if delta_x_serve_pair <  50:
-            top_pair = top_pair.sort_values(by='contact_y', ascending=False)
+            is_left_side = top_pair.iloc[0]['contact_x'] < mean_x
+            top_pair = top_pair.sort_values(by='contact_y', ascending=not is_left_side)
         else:
             top_pair = top_pair.sort_values(by='contact_x')
             
@@ -196,7 +197,8 @@ def _order_four_players(four_players):
     else:
         delta_x_serve_pair = abs(bottom_pair.iloc[0]['contact_x'] - bottom_pair.iloc[1]['contact_x'])
         if delta_x_serve_pair <  50:
-            bottom_pair = bottom_pair.sort_values(by='contact_y', ascending=True)
+            is_left_side = bottom_pair.iloc[0]['contact_x'] < mean_x
+            bottom_pair = bottom_pair.sort_values(by='contact_y', ascending=is_left_side)
         else:
             bottom_pair = bottom_pair.sort_values(by='contact_x')
             
